@@ -1,5 +1,7 @@
 project:
   type: website
+  output-dir: docs
+
 
 website:
   title: "Leo's Research Tools"
@@ -7,8 +9,10 @@ website:
     left:
       - href: index.qmd
         text: Home
+      - about.qmd 
 
 format:
   html:
     theme: cosmo
+    css: styles.css
     toc: true
