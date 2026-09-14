@@ -2,14 +2,13 @@ project:
   type: website
   output-dir: docs
 
-
 website:
-  title: "Leo's Research Tools"
+  title: "Research Tools"
   navbar:
     left:
       - href: index.qmd
         text: Home
-      - about.qmd 
+      - about.qmd
 
 format:
   html:

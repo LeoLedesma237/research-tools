@@ -1,0 +1,176 @@
+---
+title: "Fitting a DDM to Go/No-Go Data"
+format:
+  html:
+    toc: true
+---
+
+```{r load in packages, warning = F, message= F}
+# load in packages
+library(here)
+library(tidyverse)
+library(ggplot2)
+library(EMC2)
+```
+
+## 1. Read in the data
+
+```{r reading in the data}
+# Read in the data
+gng <- select(read.csv(here("ddm", "data", "gng_speed.csv")), - Correct)
+
+# view the first few observations
+head(gng, 10)
+```
+
+## 2. Generating a Cumulative Defective Plot
+
+### 2.1 Creating RT quantiles
+
+```{r Creating rt quantiles}
+# Specify the RT quantiles
+rt_probs <- seq(0.1, 0.9, by = 0.2)
+
+# Calculate RT quantiles separately for Go and No-Go responses
+rt_quantiles <- gng %>%
+  filter(R == "RESP") %>%
+  group_by(S) %>%
+  reframe(
+    rt = quantile(rt, probs = rt_probs, na.rm = TRUE),
+    quantile = rt_probs
+  )
+
+# Show the reaction time quantiles for go and ng trials
+rt_quantiles
+```
+
+
+### 2.2 Baking Accuracy into the RT Quantiles
+
+```{r Baking accuracy into the rt quantiles}
+# Calculate the probability of responding to each stimulus
+response_probs <- gng %>%
+  group_by(S) %>%
+  reframe(
+    p_response = mean(R == "RESP")
+  )
+
+# Convert the conditional RT quantiles to defective quantiles
+defective_quantiles <- rt_quantiles %>%
+  left_join(response_probs, by = "S") %>%
+  mutate(
+    defective_quantile = quantile * p_response
+  )
+
+# Show how accuracy influences the quantiles
+defective_quantiles
+
+```
+
+### 2.3 Plotting the RT Cumulative Defective Distribution
+
+```{r Generating the cumulative defective plot}
+# Plot the defective RT distributions
+defective_quantiles %>%
+  ggplot(aes(x = rt, y = defective_quantile, color = S, group = S)) +
+  geom_point() +
+  geom_line() +
+  labs(
+    title = "Cumulative Defective Distribution for Subject 001 gng data",
+    x = "Response Time (ms)",
+    y = "Cumulative Response Probability",
+    color = "Stimulus"
+  ) +
+  theme_minimal()
+```
+
+## 3. Fitting a Drift Diffusion Model (DDM)
+
+### 3.1 Preparing the data for model fitting
+
+```{r Preparing the data for model fitting}
+# Introduce a subjects variable
+gng <- mutate(gng, subjects = "001") %>% 
+  relocate(subjects, .before = trial_num)
+
+# convert variables to factors
+gng <- mutate(gng,
+              S = factor(S),
+              R = factor(R))
+
+# Convert reaction time into seconds
+gng <- mutate(gng,
+              rt = rt/1000)
+
+# Specify the reference levels in the dataset
+gng <- gng %>%
+  mutate(
+    R = factor(R, levels = c("TO", "RESP")),
+    S = factor(S, levels = c("ng", "go"))
+  )
+```
+
+
+
+### 3.2 Specifying a Design and Model
+
+```{r Setting up the DDMGNG Model}
+# Specifying the design and model object
+dGNG <- design(
+  formula = list(v  ~ 0 + S, a  ~ 1, Z  ~ 1, t0 ~ 1, sv ~ 1),
+  factors = list(
+    subjects = "001",
+    S = c("ng", "go")),
+  Rlevels = c("TO", "RESP"),
+  model = DDMGNG,
+  functions = list(
+    TIMEOUT = function(d) rep(2, nrow(d)),
+    Rnogo  = function(d) factor(rep("TO",   nrow(d)), levels = c("TO", "RESP")),
+    Rgo    = function(d) factor(rep("RESP", nrow(d)), levels = c("TO", "RESP"))
+  )
+)
+```
+
+```{r Fitting a DDM to the data}
+# Precursor before model fit
+gng_emc <- make_emc(data = gng,
+                    design = dGNG,
+                    type = "single",
+                    n_chains = 3,
+                    compress = FALSE)
+
+# Fit the DDMGNG
+#fit <- fit(gng_emc, iter = 200, cores_for_chains = 3)
+```
+
+
+```{r Extract the parameter estimates}
+#head(gng)
+#xtabs(~S+R, gng)
+#mapped_pars(fit)
+#plot_cdf(fit)
+```
+
+```{r simulate the data}
+#p_vector <- sampled_pars(fit)
+#p_vector[] <- c(
+#  -0.182,         # v_Sng: identity
+#   5.373,         # v_Sgo: identity
+#   log(0.995),    # a: inverse of exp()
+#   qnorm(0.401),  # Z: inverse of pnorm()
+#   log(0.201),     # t0: inverse of exp()
+#   0.362
+#)
+
+#sim_gng <- make_data(
+#  p_vector,
+#  design = dGNG,
+#  data = gng
+#)
+
+#xtabs(~S+R, sim_gng)
+
+# use custom function to compare
+#describe_gng(gng)
+#describe_gng(sim_gng)
+```
