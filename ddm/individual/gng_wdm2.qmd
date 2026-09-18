@@ -1,0 +1,470 @@
+---
+title: "Fitting a GNG WDM to Real Data to Estimate Condition Effects"
+editor: visual
+---
+
+For this guide, we will be fitting GNG WDM to real GNG data. Essentially, a GNG task was completed online twice though [psytoolkit.org](https://www.psytoolkit.org/experiment-library/go-no-go.html). In the first attempt, the participant focused on speed by reacting to go trials as quickly as possible. In the second attempt, the participant prioritized accuracy by slowing their reaction time to reduce the chances of responding to no-go trials (commission error). First, we will be fitting the models to the datasets separately, followed by a model specification that models the combination of both datasets.
+
+
+```{r load in packages, warning = F, message= F}
+# load in packages
+library(here)
+library(tidyverse)
+library(ggplot2)
+library(EMC2)
+```
+
+```{r load in custom functions}
+# load in all custom ddm functions
+source(here("ddm", "load.R"))
+```
+
+## 1. Read in the data
+
+For this section we will be reading in the two GNG datasets.
+
+```{r reading in the data}
+# Read in the data
+gng_speed <- select(read.csv(here("ddm", "individual", "data", "gng_speed.csv")), - Correct)
+gng_accuracy <- select(read.csv(here("ddm", "individual", "data", "gng_accuracy.csv")), - Correct)
+```
+
+## 2. Visualizing both datasets
+
+### 2.1 Examining the descriptives of our GNG datasets
+
+Both datasets had the same dimensions, 500 trials total with 80% being go trials (400 trials) and 20% being no-go trials (100 trials).
+
+First we start by getting confirmation that my strategy had an influence on my GNG performance. For the speed dataset, we see that I got all go trials correct, however, I had quite a large false alarm rate of 37%. Additionally, my median reaction time for both go and no-go trials was around 300 ms. For the accuracy dataset, my performance was fantastic with all correct go trials and a false alarm rate of 2%. Additionally, my median reaction time was 477 ms for go trials and 389 ms for no-go trials. However, since I only had two trials that counted for false alarm, the reaction time median should be interpreted cautiously.
+
+Only three rows are present for each dataset because incorrect go trials were not present.
+
+```{r Getting descriptives for our GNG datasets}
+# Create the data_design for the gng data
+gng_design <- data_design(
+  stimulus = S,
+  response = R,
+  rt = rt,
+  correct = (S == "go" & R == "RESP") | (S == "ng" & R == "TO"),
+  id = subjects
+)
+
+# Get the descriptives for the speed dataset
+get_descriptives(gng_speed, gng_design)
+
+# Get the descriptives for the accuracy dataset
+get_descriptives(gng_accuracy, gng_design)
+```
+
+### 2.2 Visualizing the defective reaction time distributions for our GNG datasets
+
+Using the `plot_defectiveDensityGNG()` function, we can see that the gng_speed has a much large 'ng' bump, representing errors and a much smaller reaction time mean compared to the gng_accuracy dataset.
+
+```{r Visualizing the reaction time distribution for our GNG datasets}
+# Generate the plot
+plot_defectiveDensityGNG(gng_speed, gng_design)
+plot_defectiveDensityGNG(gng_accuracy, gng_design)
+```
+
+## 3. Fitting the GNG WDM
+
+### 3.1 GnG data preparations
+
+Before we can fit the GNG DDM to the datasets, we need to do some data cleaning to prevent errors down the line. First, we need to make sure that the non-numeric variables within the datasets are factors- this is a must. Moreover, we should code "ng" and "TO" to function as the reference level, since that is what the model will map the lower boundary to. Lastly, reaction time must be in seconds, not milliseconds!
+
+```{r GnG data preparation}
+# Rename the rt to show it is in milliseconds
+gng_speed_renamed <- rename(gng_speed, rt_ms = rt)
+gng_accuracy_renamed <- rename(gng_accuracy, rt_ms = rt)
+
+# preparing the gng data for model fitting
+gng_speed2 <- gng_speed_renamed %>%
+  mutate(subjects = factor(1),
+         S = factor(S, levels = c("ng", "go")), # have 'ng' as reference (lower boundary)
+         R = factor(R, levels = c("TO", "RESP")), # have 'TO' as reference (lower boundary)
+         rt = rt_ms/1000) %>% # must be in seconds
+  select(trial_num, subjects, S, R, rt) # drop rt_ms
+
+gng_accuracy2 <- gng_accuracy_renamed %>%
+  mutate(subjects = factor(1),
+         S = factor(S, levels = c("ng", "go")),
+         R = factor(R, levels = c("TO", "RESP")),
+         rt = rt_ms/1000) %>%
+  select(trial_num, subjects, S, R, rt)
+```
+
+
+### 3.2 Creating our GNG model design object
+
+```{r Creating the GNG model design object}
+#| output: false
+
+# Generating the model specifications for a GnG dataset
+designWDMGNG <- design(model = DDMGNG,
+                       factors=list(subjects=1, S=c("ng", "go")),
+                       Rlevels = c("TO", "RESP"),
+                       formula = list(a ~ 1,
+                                      v ~ S, 
+                                      t0 ~ 1,
+                                      Z ~ 1),
+                       functions = list(
+                         TIMEOUT = function(d) rep(1.5, nrow(d)),
+                         Rnogo  = function(d) factor(rep("TO",   nrow(d)), levels = c("TO", "RESP")),
+                         Rgo    = function(d) factor(rep("RESP", nrow(d)), levels = c("TO", "RESP"))
+                        ))
+```
+
+
+### 3.3 Specifying the priors
+
+Next we specify the prior distributions. For a review on why these values were chosen, please visit [Introduction to Go/No-Go Wiener Diffusion Models](gng_wdm.qmd).
+
+
+```{r specifying the prior distributions}
+# Specify the prior means in the transformed scale
+pmean <- c(
+  a = log(1.31), 
+  v = -1.8, 
+  v_Sgo = 2.5,  
+  t0 = log(.38),
+  Z = qnorm(.57) 
+)
+
+# Standard deviations for the GNG priors
+psd <- c(
+  a = 0.25,     # Spread for log(a)
+  v = 2.5,     # Spread for drift rate v (ng)
+  v_Sgo = 2.5,  # Spread for drift rate v (go)
+  t0 = 0.31,   # Spread for log(t0)
+  Z = 0.37     # Spread for probit(Z)
+)
+
+# Creating the prior distribution for each GNG WDM parameter
+priorWDMGNG <- prior(designWDMGNG,
+                     pmean=pmean, 
+                     psd=psd,
+                     type="single") # Non-hierarchical
+```
+
+
+
+### 3.4 Fitting the GNG WDM
+
+Here we fit the models to the data. Just like in previous examples, we need to create emc objects which we can do using the `make_emc()` functions and then run the model using the `fit()` function. We are using the same priors and model design that we created in the previous section.
+
+```{r make emc objects for the two datasets}
+# Create an emc object for the two-choice data
+sWDM_GNG_spd <-  make_emc(data = gng_speed2, 
+                          design = designWDMGNG, 
+                          type="single",
+                          prior=priorWDMGNG)
+
+sWDM_GNG_acc <-  make_emc(data = gng_accuracy2, 
+                          design = designWDMGNG, 
+                          type="single",
+                          prior=priorWDMGNG)
+
+# Fitting the models
+# sWDM_GNG_spd <- fit(sWDM_GNG_spd)
+# sWDM_GNG_acc <- fit(sWDM_GNG_acc)
+
+# Saving the model objects
+# save(sWDM_GNG_spd, file = here("ddm", "individual", "models", "sWDM_GNG_spd.Rdata"))
+# save(sWDM_GNG_acc, file = here("ddm", "individual", "models", "sWDM_GNG_acc.Rdata"))
+
+# Loading the model objects
+load(here("ddm", "individual", "models", "sWDM_GNG_spd.Rdata"))
+load(here("ddm", "individual", "models", "sWDM_GNG_acc.Rdata"))
+
+```
+
+### 3.5 Checking model convergence
+
+From the information available below, both models converged nicely.
+
+```{r Checking for model convergence}
+# Check model convergence for the speed dataset
+check(sWDM_GNG_spd)
+
+# Check model convergence for the accuracy dataset
+check(sWDM_GNG_acc)
+```
+
+### 3.6 Extracting the GNG model parameters
+
+So the estimated parameters between the datasets is insanely interesting. The biggest difference that is theoretically consistent is that of the boundary separation (a). Across DDM papers, this parameter represents level of caution in a participant, with higher values indicating higher caution which results in slower reaction times but greater accuracy. Examining our accuracy dataset, our boundary separation is 2.4 times larger than in the speed dataset (2.396/0.986 = 2.4). Other things to note, the relative starting points (Z) for both models is quite low, favoring a non-response. Moreover, the go drift rates for both datasets are quite large but something interesting occurs for the no-go drift rate, where it is weaker but negative in the accuracy dataset, however, it becomes positive in the speed dataset.
+
+```{r Extracting model parameter estimates}
+# Extract model estimates for the speed dataset
+credint(sWDM_GNG_spd, selection="alpha", map=TRUE)
+
+# Extract model estimates for the accuracy dataset
+credint(sWDM_GNG_acc, selection="alpha", map=TRUE)
+```
+
+## 4. Are our GNG WDM capturing the datasets well?
+
+### 4.1 Obtaining the predicted datasets for both GNG datasets
+
+We use the `predict()` function as before to obtaing our 50 predicted datasets for each GNG dataset.
+
+```{r Create predicted values for the two gng datasets}
+# Use the predict function to obtain the fitted values
+# ppWDM_GNG_spd <- predict(sWDM_GNG_spd)
+# ppWDM_GNG_acc <- predict(sWDM_GNG_acc)
+
+# Saving the predicted object
+# saveRDS(ppWDM_GNG_spd, file = here("ddm", "individual", "predicted_values", "ppWDM_GNG_spd.rds"))
+# saveRDS(ppWDM_GNG_acc, file = here("ddm", "individual", "predicted_values", "ppWDM_GNG_acc.rds"))
+
+# Loading the predicted values data frame
+ppWDM_GNG_spd <- readRDS(here("ddm", "individual", "predicted_values", "ppWDM_GNG_spd.rds"))
+ppWDM_GNG_acc <- readRDS(here("ddm", "individual", "predicted_values", "ppWDM_GNG_acc.rds"))
+
+# Why so many rows?
+xtabs(~S+ postn, ppWDM_GNG_spd)
+```
+
+### 4.2 Plotting the predicted datasets for the speed dataset
+
+Seeing the defective distributions below, we see that the speed GNG WDM is doing **a poor job** at explaining our speed GNG data. The problem appears present for both go and no-go trials, but it is far worse for no-go trials. The biggest problem is that in the data the reaction times for no-go trials (commission errors) are consistently occurring very quickly while the model instead is producing a more spaced out distribution. 
+
+```{r Plotting the predicted datasets for speed}
+# plotting predicted values as defective distributions for the speed dataset
+plot_density(gng_speed2, ppWDM_GNG_spd, factors = c("S"))
+plot_cdf(gng_speed2, ppWDM_GNG_spd, factors = c("S"))
+```
+
+### 4.3 Plotting the predicted datasets for the accuracy dataset
+
+For the accuracy dataset, the model is doing a much better job at explaining our data. Again, this dataset only has two trials for incorrect no-go trials, which funny enough is represented by the two bumps in the distribution. For that reason, we can ignore that aspect and just directly focus on the go-trial distribution, which seems okay but there is still area for improvement. 
+
+```{r Plotting the predicted datasets for accuracy}
+# plotting predicted values as defective distributions for the accuracy dataset
+plot_density(gng_accuracy2, ppWDM_GNG_acc, factors = c("S"))
+plot_cdf(gng_accuracy2, ppWDM_GNG_acc, factors = c("S"))
+```
+
+## 5. Fitting a model to both datasets combined
+
+Another approach we can do is to combine the speed and accuracy dataset and fit one model to it. There are some pros to this approach. For starters, we do improve our trial number size, which could aid with the estimation process. Secondly, it can allow us to do hypothesis testing, such as whether a speed or accuracy approach has any effect on any of the GNG WDM parameters. 
+
+### 5.1 Combining the speed and accuracy datasets into one
+
+Here we combine the datasets together and also set a threshold for the fastest allowed reaction time (LT). Any trials that have a reaction time faster than this value will be dropped. 
+
+```{r combining the datasets}
+# Combine the datasets together
+gng_combined <- rbind(
+  mutate(gng_speed2, E = "spd"), 
+  mutate(gng_accuracy2, E = "acc")
+) %>%
+  mutate(E = factor(E, levels = c("spd", "acc")))
+
+# Specify the faster rt to keep in our data
+LT = .250
+
+# Remove any quick reaction times (careful not to drop NA rows)
+gng_combined <- gng_combined %>%
+  filter(rt >= LT | is.na(rt))
+
+# View the data (everything should be a factor except rt)
+str(gng_combined)
+```
+
+### 5.2 Creating a model design that can be fit to the combined datasets
+
+Here we are using the `design()` function to specify a model more complicated that we are used to. It is technically still a Wiener Diffusion Model since we are not estimating any of the between-trial variabiliaty parameters. However, here we are modeling every parameter as a function of E, which is essentially the condition factor with the speed and accuracy date. Additionally, the S * E interaction will allow us to estimate four drift rates, essentially a go and no-go drift rate for the speed and accuracy data.
+
+```{r creating a better design model}
+#| output: false
+
+# Creating the model design for the combined dataset
+designWDMGNG_combined <- design(
+  model = DDMGNG,
+  factors = list(subjects = 1, S = c("ng", "go"), E = c("spd", "acc")),
+  Rlevels = c("TO", "RESP"),
+  LT = LT, # Removed trials shorter than this rt
+  formula = list(
+    a  ~ E,        # Boundary varies by Speed vs. Accuracy emphasis
+    v  ~ S * E,    # Drift rate varies by Stimulus type AND Emphasis
+    t0 ~ E,        # Non-decision time allowed to vary by Emphasis
+    Z  ~ E         # Relative starting point allowed to vary by Emphasis
+  ),
+  functions = list(
+    TIMEOUT = function(d) rep(1.5, nrow(d)),
+    Rnogo   = function(d) factor(rep("TO",   nrow(d)), levels = c("TO", "RESP")),
+    Rgo     = function(d) factor(rep("RESP", nrow(d)), levels = c("TO", "RESP"))
+  )
+)
+```
+
+### 5.3 Understanding the parameters that will be estimated
+
+While we have used the `mapped_pars()` function multiple times in the past to check whether or not we specified our parameters correctly when simulating data, we can also use this function to assess how parameters will be estimated as a function of factors in the data.
+
+By default, the model uses **dummy coding** when estimating parameters, such that there is one level that functions as a reference. Therefore, the parameter for that reference level will be estimated, while the other levels have specific effects, or differences relative to the reference level, estimated instead. In our case, since we are modeling all parameters as a function of E, the 'spd' level functions as the reference. Thus, the baseline parameter corresponds to the 'spd' condition, while coefficients involving 'acc' instead represent the effect, or difference, associated with the accuracy condition. This is consistent across a, t0, and Z.
+
+For drift rate, we additionally have an S * E interaction. Because 'ng' and 'spd' are the reference levels, v corresponds to the drift rate for ng trials in the 'spd' condition. The v_Sgo parameter represents the difference between go and ng trials within the 'spd' condition, while v_Eacc represents the difference between the accuracy and speed conditions for ng trials. Finally, v_Sgo:Eacc is the interaction effect, representing the additional change in the go versus ng difference under the accuracy condition beyond the two main effects.
+
+```{r Print out a matrix showing what is getting estimated by factors}
+mapped_pars(designWDMGNG_combined)
+```
+
+### 5.4 Creating our prior distributions
+
+Now we need to discuss how we will be creating the prior distributions for this more complex model specification of the GNG WDM. First, we need to differentiate the **baseline parameters** from the **condition-effect parameters**. Starting with the baseline parameters, these correspond to the reference levels of the factors in the model. For example, we know from the `mapped_pars()` output that the reference level for E is 'spd'. Thus, the boundary separation (a), non-decision time (t0), and relative starting point (Z) baseline parameters correspond to the 'spd' condition, while the baseline drift rate (v) specifically corresponds to ng trials in the 'spd' condition. Therefore, we can treat these baseline parameters as we would parameters when they are specified to 1 (e.g., a ~ 1) by using the same prior means we already established.
+
+For coefficients representing condition effects, such as those involving the 'acc' level, the parameter instead represents an effect or difference relative to the reference condition. Based on the approach used in [Day1-BasicEAMS/2-Dual.R](https://github.com/niekstevenson/MBNCS26/blob/main/Day1-BasicEAMs/2-Dual.R), these effects can have priors specified with a mean of 0 because we are not assuming a direction for the effect. This also applies to the interaction term. One exception is v_Sgo, which is technically an effect representing the difference between go and ng drift rates within the 'spd' condition. However, because we already established an informed prior for this go versus ng difference when specifying our original GNG WDM, we retain that prior rather than centering it at zero.
+
+For our prior standard deviations, we again retain the values we previously established for the baseline parameters. For the condition-effect parameters, there is no straightforward rule for selecting a standard deviation. Following the approach used in [Day1-BasicEAMS/2-Dual.R](https://github.com/niekstevenson/MBNCS26/blob/main/Day1-BasicEAMs/2-Dual.R), we use somewhat smaller standard deviations for these effects, reflecting a vague expectation that condition effects will generally be smaller than the broader range of plausible values for the underlying parameters. The exact standard deviations chosen for these effects should therefore be viewed as weakly regularizing prior choices rather than empirically established values.
+
+```{r creating out prior distributions for the combined GNG}
+# Specify prior means
+pmean <- c(
+  a            = log(1.31),
+  a_Eacc       = 0,
+  v            = -1.80,
+  v_Sgo        = 2.50,
+  v_Eacc       = 0,
+  "v_Sgo:Eacc" = 0,
+  t0           = log(0.38),
+  t0_Eacc      = 0,
+  Z            = qnorm(0.57),
+  Z_Eacc       = 0
+)
+
+# Specify prior standard deviations
+psd <- c(
+  a            = 0.25,
+  a_Eacc       = 0.20,
+  v            = 2.50,
+  v_Sgo        = 2.50,
+  v_Eacc       = 1.00,
+  "v_Sgo:Eacc" = 1.00,
+  t0           = 0.31,
+  t0_Eacc      = 0.20,
+  Z            = 0.37,
+  Z_Eacc       = 0.25
+)
+
+# Create prior distribution
+priorWDMGNG_combined <- prior(
+  designWDMGNG_combined,
+  pmean = pmean,
+  psd   = psd,
+  type  = "single"
+)
+```
+
+### 5.5 Viewing the prior distribution
+
+By printing out the prior object we created we can quickly view the differences between the baseline and condition-effect parameters. We can also plot the prior to view their means and distribution in the normal scale.
+
+```{r Viewing the priors we just generated}
+# Printing out the prior distributions
+priorWDMGNG_combined
+
+# plotting on the natural scale
+plot(priorWDMGNG_combined, designWDMGNG_combined, layout=c(2,4))
+```
+
+### 5.6 Fitting the GNG WDM to the combined dataset
+
+Now here we fit the our more complicated model desing object and the save the model output. The model converged just fine.
+
+```{r fitting the model}
+# Create an emc object for the two-choice data
+sWDM_GNG_combined <-  make_emc(data = gng_combined, 
+                               design = designWDMGNG_combined, 
+                               type="single",
+                               prior=priorWDMGNG_combined)
+
+# Fitting the models
+# sWDM_GNG_combined <- fit(sWDM_GNG_combined)
+
+# Saving the model objects
+# save(sWDM_GNG_combined, file = here("ddm", "individual", "models", "sWDM_GNG_combined.Rdata"))
+
+# Loading the model objects
+load(here("ddm", "individual", "models", "sWDM_GNG_combined.Rdata"))
+
+# Check model convergence
+check(sWDM_GNG_combined)
+```
+
+### 5.7 Extracting the model parameters
+
+As usual, we can then use the `credint()` function to print out the parameter estimates from the model. We are used to adding the argument map=TRUE so that the output is back in the normal scale. However, if we wanted to do some **hypothesis testing**, we can ask the model to return the estimates in the transformed scale, which produces the actual effects! From the effects, we can see those that do not contain zero within their 95% confidence intervals to indicate a credibly significant effect.
+
+For example, the effect of boundary separation (a) for accuracy is 0.670, 95% CI \[0.363, 0.985\]. This would indicate a credibly significant higher a in accuracy compared to speed. However, before interpreting anything further, we have to confirm that our model is doing a good job describing the data.
+
+```{r extract these parameters player}
+# Print the parameter estimates for the combined GNG data
+credint(sWDM_GNG_combined, selection="alpha", map=TRUE)
+
+# Print out the parameter effects for the combined GNG data
+credint(sWDM_GNG_combined, selection = "alpha", map = FALSE)
+```
+
+## 6. Does the combined model explain our data well?
+
+### 6.1 Generating our predicted datasets
+
+We should already be prettier familiar with this process.
+
+```{r Create predicted values for the combined gng datasets}
+# Use the predict function to obtain the fitted values
+# ppWDM_GNG_combined <- predict(sWDM_GNG_combined)
+
+# Saving the predicted object
+# saveRDS(ppWDM_GNG_combined, file = here("ddm", "individual", "predicted_values", "ppWDM_GNG_combined.rds"))
+
+# Loading the predicted values data frame
+ppWDM_GNG_combined <- readRDS(here("ddm", "individual", "predicted_values", "ppWDM_GNG_combined.rds"))
+
+# Why so many rows?
+xtabs(~S+ postn, ppWDM_GNG_combined)
+```
+
+### 6.2 Plotting the predicted datasets over the combined GNG
+
+By examining the plots below, we do see that there is an improvement by combining the data together rather than keeping them separate. For example, there was **noticeable misfit** for the speed GNG data for both go and no-go trials. 
+
+However, by looking at the defective density distribution below, we see that the misfit for the go trial improved dramatically, while for the no-go it remains present. The same problem persist that the reaction time for the real no-go trials is consistently much faster than that being predicted by the model.
+
+```{r Plotting the combined predicted dataset}
+# plotting predicted values as a density plot
+plot_density(gng_combined, ppWDM_GNG_combined, factors = c("S"))
+
+# Plotting the predicted values as a cumulative defective function
+plot_cdf(gng_combined, ppWDM_GNG_combined, factors = c("S"))
+```
+
+### 6.3 Plotting the predicted datasets over the combined GNG by Experimental Condition (speed vs accuracy)
+
+Since we introduced the experimental condition factor (E) into the modeling process, we can also code the `plot_density()` and `plot_cdf()` functions to show us the defective distributions separated by combinations of S and E. By doing this, we can further investigate model misfit to see if is present generally across level combinations or if present in specific ones. 
+
+Funny enough, by producing these plots we can see some level of misfit for all level combinations! However, we should ignore the weirdness present in no-go accuracy since again, that plot is only being generated from two trials.
+
+```{r Plotting the combined predicted dataset faceted by E, fig.width = 10, fig.height = 10}
+# plotting predicted values as a density plot
+plot_density(gng_combined, ppWDM_GNG_combined, factors = c("S", "E"))
+
+# Plotting the predicted values as a cumulative defective function
+plot_cdf(gng_combined, ppWDM_GNG_combined, factors = c("S", "E"))
+```
+
+### 6.4 Model fitting conclusion
+
+Overall from the defective distribution plots above, the GNG WDM is not sufficient to explain the data. However, we can essentially see if estimating **between-trial variability** parameters can salvage this. Information on this model specification is available here: [Fitting Between-Trial Variability Parameters to GNG data](gng_wdm3.qmd)
+
+### 6.5 Saving the preprocessed dataset
+
+We will be saving the dataset so that any cleaning will carry over into the next R script.
+
+```{r saving the preprocessed dataset}
+# Save the dataset as an .rds file
+saveRDS(gng_combined, file = here("ddm", "individual","data","gng_combined.rds"))
+
+```

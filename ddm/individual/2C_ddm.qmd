@@ -1,0 +1,177 @@
+---
+title: "Introduction to DDM Between-Trial Variability Parameters Using Simulation"
+editor: visual
+---
+
+The goal of this document is to explore the effects of between-trial variability parameter estimates by simulating data with them specified and comparing their distribution to data simulated using a Wiener Diffusion Model (WDM). We already should have an expectation of what these effects should be based on the information available in 'Estimating Across-Trial Variability Parameters of the Diffusion Decision Model: Expert Advice and Recommendations' by Boehm et al. (2018).
+
+```{r load in packages, warning = F, message= F}
+# Load in the packages
+library(EMC2)
+library(tidyverse)
+library(ggplot2)
+library(here)
+```
+
+```{r load in custom functions}
+# load in all custom ddm functions
+source(here("ddm", "load.R"))
+```
+
+
+## Part 1: A regular Wiener Diffusion Model
+
+### 1.1 Creating a full DDM model for data simulation
+
+We use the `design()` function to specify a model that basically is a full drift diffusion model (DDM). This means that every between-trial variability parameter (SZ, sv, st0) is accounted for. However, we are specifically using this function to simulate data not estimate parameters. So although it will be named as a full DDM, its function is just to make designing dataset with specific between-trial parameter estimates easier. 
+
+```{r create a model design for the full DDM}
+#| output: false
+
+# Generating the data and model specification
+designDDM_full <- design(model = DDM,
+                        factors=list(subjects=1,S=1:2), # S is the stimulus 1, or 2
+                        Rlevels = 1:2,                  # Corresponding responses
+                        # Single value of each WDM parameter except rates
+                        # where there is one value for each stimulus
+                        formula = list(a ~ 1, 
+                                       v ~ S, 
+                                       t0 ~ 1, 
+                                       Z ~ 1,
+                                       SZ ~ 1,   # needed for data simulation
+                                       sv ~ 1,   # needed for data simulation
+                                       st0 ~ 1)) # needed for data simulation
+```
+
+
+### 1.2 Specifying parameter values for a Wiener Diffusion Model
+
+We are using the `sampled_pars()` function to extract an empty vector that contain the names of all the parameters that the model will use for data simulation. We then only specify the parameters for the boundary separation (a), drift rate (v, vS_2), non-decision time (t0), and the relative starting point (Z). The between trial variability estimates are all set to 0, making this a Wiener Diffusion Model (WDM) specification.
+
+```{r Specifying the parameters for the simulated SZ data}
+# Choose parameters for simulation, first getting a vector with the right name
+parsDDM<- sampled_pars(designDDM_full)
+
+# Then choosing some values. Note that we include transforms here to illustrate
+# the scale on which sampling occurs
+parsDDM[] <- c(a = log(1), 
+               v = -1.5, 
+               v_S2 = 3, 
+               t0 = log(.3), 
+               Z = qnorm(.5),
+               SZ = qnorm(0), # must use qnorm()
+               sv = log(0),   # must use log()
+               st0 = log(0))  # must use log()
+
+# Here are the values
+parsDDM
+
+# Confirm our parameters were specified correctly
+mapped_pars(designDDM_full, parsDDM) %>%
+  select(-c(z, sz))
+```
+### 1.3 Specifying parameter values for the beween-trial variability parameters
+
+Here we are just taking the vector that has the parameter specifications for a WDM and down below changing the values that correspond to between-trial variability parameters. Additionally when modifying the values, we must be mindful that it has to be done in a transformed scale. For example, the SZ parameter must be changed using the `qnorm()` function whil sv and st0 are changed using the `log()` function. 
+
+```{r Specifying the between trial variability parameters}
+# Create new parameter specification vectors
+parsWDM     <- parsDDM
+parsDDM_SZ  <- parsDDM
+parsDDM_sv  <- parsDDM
+parsDDM_st0 <- parsDDM 
+
+# Change the parameters of interest
+parsDDM_SZ["SZ"]   <- qnorm(.90) # must be in qnorm()
+parsDDM_sv["sv"]   <- log(2)     # must be in log()
+parsDDM_st0["st0"] <- log(.2)    # must be in log()
+```
+
+### 1.4 Simulating the between-trial variability datasets
+
+Down below we are just using the `make_data()` to simulate the data. Notice how the only that differs across the code is the input for the paraneters.
+
+```{r simulating the data}  
+# Simulate all the datasets 
+dat     <- make_data(parameters = parsWDM, design = designDDM_full, n_trials = 5000)
+dat_SZ  <- make_data(parameters = parsDDM_SZ, design = designDDM_full, n_trials = 5000)
+dat_sv  <- make_data(parameters = parsDDM_sv, design = designDDM_full, n_trials = 5000)
+dat_st0 <- make_data(parameters = parsDDM_st0, design = designDDM_full, n_trials = 5000)
+```
+
+## 2. Visually assessing the influence of between-trial variability parameters
+
+### 2.1 Creating a data design object
+
+We quickly start by running the custom `data_design()` function where we mention what the variables and values are from our simulated data. This will allow us to get descriptives or plot the data with subsequent custom functions. Specifically, we will be using the `plot_defectiveDensityComparison()` function. Below we can familiarize ourselves with out WDM dataset. We see in general that both stimuli results in about 80% accuracy and that reaction times across correct and incorrect responses for both stimuli is around 460 ms. 
+
+```{r Create a data design object so we can use custom plotting function}
+dat_design <- data_design(
+  stimulus = S,
+  response = R,
+  rt = rt,
+  correct = (S == 1 & R == 1) | (S == 2 & R == 2),
+  id = subjects
+)
+
+# Get descriptives of the WDM
+get_descriptives(dat, dat_design)
+```
+
+### 2.2 The effect of relative starting point variability (SZ)
+
+For the SZ parameter, it is specifically specified when within the data we see that responses are faster on errors and there are lower rates of accuracy. So essentially it is targeting a specific type of pattern which is faster reaction times on errors conditional on poorer performance. Thus, when we compare the dataset with an extreme SZ specification against the WDM, we should expect for the reaction time distributions for the errors (S1 & R2 | S2 & R1) to be more shifted to the left and expect the defective reaction time distributions to be higher for the error trials, indicating poorer performance. 
+
+We first evaluate this by using descriptive information from the data. We see that accuracy in fact took a minor hit, with average performance for both trials around 74% (WDM = 80%). Additionally we do see some changes for the reaction times, where in general reaction times for errors are faster (367 ms) compared to correct responses (420 ms), a pattern that was not present in the WDM (460 ms).
+
+By examining the plot below, we do see the errors (S2 & R1) are not only much faster but that they are **consistently faster** while the WDM has a smaller peak more nicely spread out reaction time distribution. This is also likely due to the SZ data having more errors in general, making the error reaction time distribution have a slighlty larger peak (red). There also appears to be a slight increase in reaction time for correct trials as well in comparison to the WDM.
+
+```{r plotting the effect of SZ}
+# Get descriptives
+get_descriptives(dat_SZ, dat_design)
+
+# Create defective density plots for each dataset
+plot_defectiveDensityComparison(dat_SZ, dat, dat_design, x_max = 1.5)
+```
+
+### 2.3 The effect of drift variability (sv)
+
+When it comes to the drift variability, this parameter is usually specified when there seems to be slower reaction times to incorrect trials compared to correct trials. Additionally, this tends to happen in situations where accuracy in general is on the higher end. In other words, the sv parameter functions like the opposite of the SZ parameter. In that sense, we should expect for the sv data to have slower reaction times for incorrect trials along with smaller peaks representing better accuracy in comparison to the WDM data.
+
+Beginning with descriptives, this is insanely interesting. Turns out that our sv dataset actually has a much lower accuracy value (71%) than not only the WDM data (80%) but also the SZ data (74%). However, for the error reaction times we do see that the parameter influenced it as expected by producing slower reaction times for errors (466 ms) compared to correct trials (432 ms). 
+
+When generating the plot, honestly it is pretty difficult to tell the difference between the sv and the WDM data. The only apparent difference is that the reaction time distribution for the incorrect responses seems larger in sv compared to the reference. However, the slower reaction time on error trials that we captured in the descriptives visually does not seem apparent below, which is more of a limitation from making these types of plots. 
+
+
+```{r plotting the effect of sv}
+# Get descriptives
+get_descriptives(dat_sv, dat_design)
+
+# Create defective density plots for each dataset
+plot_defectiveDensityComparison(dat_sv, dat, dat_design, x_max = 1.5)
+```
+
+### 2.4 The effect of non-decision time variability (st0)
+
+
+The st0 parameter is typically not one that is estimated frequently. According to the [Day1-BasicEAMs/2-Dual.R](https://github.com/niekstevenson/MBNCS26/blob/main/Day1-BasicEAMs/2-Dual.R)   guide, this parameter is usually not required. Additionally, an example of when this parameter was estimated was in Ratcliff et al. (2004), in order to better capture variability in reaction times that were very fast due to experimental conditions. Essentially, st0 represents between-trial variability in non-decision time, allowing non-decision time to vary across trials rather than assuming that it is constant across all trials. For example, if a person's t0 value is 400 ms, this does not necessarily mean that the non-decision time was exactly 400 ms on every trial. The introduction of st0 allows the model to account for some trial-to-trial variability in this value.
+
+
+Based on this information, we can expect st0 to primarily affect the reaction time distribution. This makes sense because st0 introduces trial-to-trial variability in the non-decision component of reaction time, rather than changing the evidence accumulation process itself. Another thing to note is that this parameter does not seem to be error or correct specific. This is different from what we saw with SZ and sv, where introducing these parameters produced differences between the reaction times of correct and incorrect trials. Because st0 does not directly change the evidence accumulation process, we also would not necessarily expect it to have much of an effect on accuracy.
+
+
+Starting with the descriptives, we can see that performance on the stimuli (82%) is comparable to that of the WDM (80%), which is consistent with what we expected. Moreover, the reaction times are about the same between correct and incorrect trials (570 ms). What is interesting, however, is that the reaction times appear to be a lot slower compared to the WDM (460 ms). So, while we initially hypothesized that st0 would primarily change the shape and spread of the reaction time distribution, introducing st0 = .20 in this simulation seems to have shifted the overall reaction time distribution toward slower reaction times.
+
+
+We can see this shift very clearly in the plots below, and the effect appears to be fairly consistent for both correct and incorrect trials. Therefore, unlike SZ and sv, the main effect of st0 in this simulation does not seem to be a difference between correct and incorrect reaction times. Instead, it seems to have a more general effect on the reaction time distribution while leaving accuracy relatively unchanged.
+
+
+```{r plotting the effect of st0}
+# Get descriptives
+get_descriptives(dat_st0, dat_design)
+
+# Create defective density plots for each dataset
+plot_defectiveDensityComparison(dat_st0, dat, dat_design, x_max = 1.5)
+```
+
+

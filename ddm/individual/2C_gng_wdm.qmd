@@ -1,0 +1,361 @@
+---
+title: "A Comparison Between Two Choice WDM and Go/No-Go WDM"
+editor: visual
+---
+
+This document is going to be an extension of the [Introduction to Wiener Diffusion Models](2C_wdm.qmd) Github page. Thus, topics that were discussed thoroughly there will be covered more quickly through this document.
+
+
+```{r load in packages, warning = F, message= F}
+# Load in the packages
+library(EMC2)
+library(tidyverse)
+library(ggplot2)
+library(here)
+```
+
+```{r load in custom functions}
+# load in all custom ddm functions
+source(here("ddm", "load.R"))
+```
+
+## 1. Simulating 2C and GNG data
+
+The following section is inspired by the work of Ratcliff et al. (2018). Essentially, we are going to replicate their work by simulating two choice data (2C), turning it into Go/No-Go data (GNG) by removing reaction times from a response, and then fitting a DDM to the 2C and a GNG DDM to the GNG and seeing if the parameters are similar to each other or not.
+
+Why do this? Well since it is the exact same dataset that is just being manipulated to not have a response time, then mathematically, the DDM should be able to generate the same parameter estimates that was used to generate it.
+
+### 1.1 Specifying the 2C DDM and GNG DDM
+
+We first start by using the `design()` function to specify the models we want to use. For both models, we will use the **Wiener diffusion model** (WDM), so that abbreviation will be used for the models. This just means that these DDMs will not estimate **between-trial variability parameters** (e.g., Sv, St0, SZ).
+
+For the GNG DDM model, there is more information that we need to specify. For starters, we need to specify the 'DDMGNG' model within the `design()` function, which expects missing reaction times as a legitimate response (or in this case lack of a response). The factors argument gives the function information about our data that does not exist yet, but that is needed to make the function work (e.g., subjects and stimulus). For the Rlevels argument, we need to specify what the two response values are, we chose "TO" and "RESP" but this is arbitrary.
+
+It is important to note that reference level of the factors will be used as the lower boundary in this model. Therefore, it is important to have "TO" as the reference (first level) for Rlevels and also to code "ng" as the reference for S.
+
+Next we specify what parameters we want to estimate from the GNG DDM, which is the ones we estimate from a WDM. Additionally, we now have to code for information within the functions argument. The TIMEOUT represents essentially the reaction time threshold in seconds when a non-response was given- this doesn't really matter (I don't think) since we are changing the reaction times to NAs anyway. Next, the Rnogo argument is where we tell the `design()` function what the level name for R is that represents a no-go response. Similarly, the Rgo argument is the level name for R that represents a response.
+
+```{r Specifying the DDM and GnG DDM}
+#| output: false
+
+# Generating the data and model specification
+designWDM <- design(model = DDM,
+                    factors=list(subjects=1, S=1:2), 
+                    Rlevels = 1:2,                  
+                    formula = list(a ~ 1, 
+                                   v ~ S, 
+                                   t0 ~ 1, 
+                                   Z ~ 1)) 
+
+# Generating the model specifications for a GnG dataset
+designWDMGNG <- design(model = DDMGNG,
+                       factors=list(subjects=1, S=c("ng", "go")),
+                       Rlevels = c("TO", "RESP"),
+                       formula = list(a ~ 1,
+                                       v ~ S, 
+                                       t0 ~ 1,
+                                       Z ~ 1),
+                      functions = list(
+                          TIMEOUT = function(d) rep(1.5, nrow(d)),
+                          Rnogo  = function(d) factor(rep("TO",   nrow(d)), levels = c("TO", "RESP")),
+                          Rgo    = function(d) factor(rep("RESP", nrow(d)), levels = c("TO", "RESP"))
+                        ))
+```
+
+### 1.2 Simulating the 2C and GNG data
+
+**Important**: We chose a large number of trials (n = 5000 for each S) to simulate in order to get really good parameter recovery.
+
+Here we are using the `sampled_pars()` function to extract a vector with the parameter names which then we populate with the parameter values we want in their respective transformed scale. We use `mapped_pars()` to confirm we specified the parameter values correctly and then we simulate the data using the `make_data()` function.
+
+Afterwards, we take the simulated 2C data and just change it to resemble a GNG dataset. Keep in mind, there are GNG data simulating specific functions but we are not showing them in this document. They are, however, available in [Introduction to Go/No-Go Drift Diffusion Models (Part 2)]().
+
+```{r Choosing the WDM parameters for data simulation}
+# Choose parameters for simulation, first getting a vector with the right name
+parsWDM <- sampled_pars(designWDM)
+
+# Then choosing some values. Note that we include transforms here to illustrate
+# the scale on which sampling occurs
+parsWDM[] <- c(log(1), -.75, 3.4, log(.3), qnorm(.5))
+
+# Confirm our parameters were specified correctly
+mapped_pars(designWDM, parsWDM)
+
+# Simulate the two-choide data
+dat <- make_data(parameters = parsWDM, 
+                 design = designWDM,
+                 n_trials = 5000) # Per stimulus
+```
+
+**Important**: We must make sure that the GNG dataset has only factors and not character variables, or else fitting the DDM GNG will cause problems.
+
+```{r Simulating the two-choice and gng data}
+# Convert the two-choice data into GnG data
+gng <- dat %>%
+  mutate(S = ifelse(S == "1", "ng", "go"),
+         R = ifelse(R == "1", "TO", "RESP"),
+         rt = ifelse(R == "TO", NA, rt))
+
+# Convert variables to factors (MUST DO THIS OR fit() will FAIL)
+gng <- gng %>%
+  mutate(
+    S = factor(S, levels = c("ng", "go")),
+    R = factor(R, levels = c("TO", "RESP"))
+  )
+```
+
+### 1.3 Visualizing both datasets
+
+We can use my custom functions to create a data_design object so that we can then use the functions `get_descriptives()` and the plotting functions `plot_defectiveDensity()` and `plot_defectiveDensityGNG()` on our datasets.
+
+Since they are essentially the same data, we see that the accuracy and reaction times between the two are identical. Important to note, the function of the `plot_defectiveDensity()` function is to produce defective density plots for each stimuli in the dataset. This plot, however, makes no sense for the GNG, since within a stimulus, there is only one response with a reaction time! Thus, it is more informative to instead compare the RT distributions **between** stimuli, which is what the `plot_defectiveDensityGNG()` function does.
+
+```{r creating a data_design object}
+# Create the data_design for the two choice data
+dat_design <- data_design(
+  stimulus = S,
+  response = R,
+  rt = rt,
+  correct = (S == 1 & R == 1) | (S == 2 & R == 2),
+  id = subjects
+)
+
+# Create the data_design for the gng data
+gng_design <- data_design(
+  stimulus = S,
+  response = R,
+  rt = rt,
+  correct = (S == "go" & R == "RESP") | (S == "ng" & R == "TO"),
+  id = subjects
+)
+
+# Get the descriptives from the datasets
+get_descriptives(dat, dat_design)
+get_descriptives(gng, gng_design)
+
+# Generate the plot
+plot_defectiveDensity(dat, dat_design)
+plot_defectiveDensityGNG(gng, gng_design)
+```
+
+## 2. Fitting a 2C DDM and GNG DDM to the data
+
+### 2.1 Generating prior distributions
+
+A deeper review for prior distributions in terms of means and standard deviations is available in the introduction to DDM guide. Note that for our purposes, we are using the **same prior distribution** for the 2C and GNG data. However, in practice we would expect these distributions to be different, since the GNG task itself generally results in different parameter values compared to the 2C (e.g., higher drift rate for go trials while weaker drift rate for no-go trials).
+
+Additionally, we do need to construct two 'emc.prior' objects using the `prior()` function since they require a model design object. In other words, failing to do this will cause errors during the fitting process, even though the prior distributions between them are identical.
+
+```{r generating the prior distributions}
+# Specify the prior means in the transformed scale
+pmean <- c(
+  a = log(1.25), 
+  v = -2.2, 
+  v_S2 = 2.2,  
+  t0 = log(.4),
+  Z = qnorm(.5) 
+)
+
+# Standard deviations
+psd <- c(
+  a = 0.5,     # Spread for log(a)
+  v = 2.5,     # Spread for drift rate v (S1)
+  v_S2 = 2.5,  # Spread for drift rate v (S2)
+  t0 = 0.38,   # Spread for log(t0)
+  Z = 0.35     # Spread for probit(Z)
+)
+
+# Generating the prior distributions for the two-choice data
+priorWDM <- prior(design=designWDM,
+                  pmean=pmean, 
+                  psd=psd,
+                  type="single") # Non-hierarchical
+
+# Generating the prior distributions for the gng data
+priorWDMGNG <- prior(design=designWDMGNG,
+                     pmean=pmean, 
+                     psd=psd,
+                     type="single") # Non-hierarchical
+
+# plotting on the natural scale
+plot(priorWDM, designWDM, layout=c(2,4))
+```
+
+### 2.2 Fitting the two models
+
+To fit the models, we first need to create 'emc' objects using the `make_emc()` function. The input for this function is the data, the model design, the priors, and whether the model is hierarchical or not. Notice the names from these different inputs have to be compatible with each other, this is why for the GNG, we needed to have its own model design and its own specific prior distribution.
+
+After that we use the `fit()` function to run the Bayesian model, which can take a while so it is recommended to save the output once the model is done and then load it back into R.
+
+Here we are naming the models as sWDM, to remind us they are Wiener's DDM and we separate them by the task (2 choice = 2C; Go/No-Go = GNG). The s in the name just means samples.
+
+```{r Fitting the two models}
+# Create an emc object for the two-choice data
+sWDM_2C <-  make_emc(data = dat, 
+                     design = designWDM, 
+                     type="single",
+                     prior=priorWDM)
+
+# Create an emc object for the gng data
+sWDM_GNG <-  make_emc(data = gng, 
+                      design = designWDMGNG, 
+                      type= "single",
+                      prior=priorWDMGNG)
+
+# Fitting the models
+# sWDM_2C <- fit(sWDM_2C)
+# sWDM_GNG <- fit(sWDM_GNG)
+ 
+# Saving the model objects
+# save(sWDM_2C, file = here("ddm", "individual", "models", "sWDM_2C.Rdata"))
+# save(sWDM_GNG, file = here("ddm", "individual", "models", "sWDM_GNG.Rdata"))
+
+# Loading the model objects
+load(here("ddm", "individual", "models", "sWDM_2C.Rdata"))
+load(here("ddm", "individual", "models", "sWDM_GNG.Rdata"))
+```
+
+### 2.3 Checking for model convergence
+
+Using the `check()` function we can see that both models converged nicely. The Rhat values are less than 1.1, which is good! Additionally all of the ESS values are much larger than 1,000. For a review on the interpretation of these values, please visit the introduction to DDM guide.
+
+```{r Checking for model convergence}
+check(sWDM_2C)
+check(sWDM_GNG)
+```
+
+### 2.4 Extracting Model Parameter Estimates
+
+Here we use the `mapped_pars()` function to remind ourselves what parameter values were chose (ground truth) to simulate the data. With the `credint()` function, we can see that both the 2C DDM and the GNG DDM recovered essentially the same parameters!
+
+This is what Ratcliff et al. (2018) showed in their work, that a GNG DDM can capture the same information as a regular 2C DDM, thus the interpretations between the two should be comparable.
+
+```{r Extracting model parameter estimates}
+# Print the original parameter estimates
+mapped_pars(designWDM, parsWDM)
+
+# Print the parameter estimates for the two-choice data
+credint(sWDM_2C, selection="alpha", map=TRUE)
+
+# Print the parameter estimates for the gng data (re-ordered)
+gng_params <- credint(sWDM_GNG, selection = "alpha", map = TRUE)[[1]]
+gng_params[c("v_Sng", "v_Sgo", "a", "t0", "Z"), ]
+```
+
+## 3. Does the GnG model capture the data well?
+
+### 3.1 Generating the predicted values
+
+Now we need to investigate whether our GNG WDM can capture our GNG data well. To do this, we use the `predict()` function to generate 50 predicted datasets, each one having the same dimensions and trial order as the original gng data, where the response ("go", "ng") and reaction time (rt) are predicted from the model.
+
+```{r generating predicted values}
+# Use the predict function to obtain the fitted values
+# ppWDM_GNG <- predict(sWDM_GNG)
+
+# Saving the predicted object
+# saveRDS(ppWDM_GNG, file = here("ddm", "individual", "predicted_values", "ppWDM_GNG.rds"))
+
+# Loading the predicted values data frame
+ppWDM_GNG<- readRDS(here("ddm", "individual", "predicted_values", "ppWDM_GNG.rds"))
+
+# View the predicted data
+head(ppWDM_GNG, 10)
+
+# Comparing predicted and original data
+left_join(
+  gng,
+  rename(filter(ppWDM_GNG, postn == 1), R_pred = R, rt_pred = rt),
+  by = c("subjects", "S", "trials")
+) %>%
+  head(10)
+
+# Why so many rows?
+xtabs(~S+ postn, ppWDM_GNG)
+```
+
+## 3.2 Plotting the predicted datasets over our original data
+
+We can use these predicted datasets to generate defective density and cumulative defective distribution plots. However, because this is a GNG task, we will only see one distribution within each stimulus, which is either a correct go response or an incorrect ng response. Regardless by comparing the data along with the predicted datasets, overall the model looks like it is doing a good job in explaining our data!
+
+This is largely due to just how large we decided to make our data. Again, we created a dataset with 10,000 trials- had this been smaller these plots would have looked a lot worse. This is just a proof of concept that our GNG WDM can explain our data well in the right conditions!
+
+```{r Plotting the predicted values}
+# plotting predicted values as a density plot
+plot_density(gng, ppWDM_GNG, factors = c("S"))
+
+# Plotting the predicted values as a cumulative defective function
+plot_cdf(gng, ppWDM_GNG, factors = c("S"))
+```
+
+### 3.3 Examining accuracy capture
+
+Below we can also just check correct go and incorrect ng responses (false alarms) for the original data and the predicted datasets- in our case both the go and ng response is within the 95% CI from the predicted datasets.
+
+```{r Quickly checking accuracy}
+# Getting descriptives for the original data
+agg1 <- aggregate(R=="RESP"~subjects*S, gng, mean)
+colnames(agg1)[3] <- c("RESP")
+agg2 <- aggregate(RESP~S, agg1, mean)
+
+# Getting descriptives for the predicted datasets
+agg1_pp <- aggregate(R=="RESP"~ S*subjects*postn, ppWDM_GNG, mean)
+colnames(agg1_pp)[4] <- c("RESP")
+agg2_pp <- aggregate(RESP~S*postn, agg1_pp, mean)
+agg3_pp <- aggregate(RESP~S, agg2_pp, median)
+low_pp <- aggregate(RESP~S, agg2_pp, function(x) quantile(x, 0.025))
+upp_pp <- aggregate(RESP~S, agg2_pp, function(x) quantile(x, 0.975))
+
+agg4_pp <- data.frame(
+   S      = agg3_pp$S,
+  "2.5%"  = low_pp$RESP,
+  "50%"   = agg3_pp$RESP,
+  "97.5%" = upp_pp$RESP,
+  check.names = FALSE  
+)
+
+# Raw data vs Predicted datasets
+agg2; agg4_pp
+```
+
+## 4. GNG WDM parameter recovery
+
+### 4.1 Simulating and fitting a GNG DDM
+
+We now need to confirm that we can recover the parameters from the GNG WDM. This is because it is possible to generate data similar to our original data from multiple combinations of parameter estimates. Thus, if we can recover very similar parameters from simulated data using our initial model estimates, then that means we can be more confident our model is working as intended.
+
+Anyway, here we use the `make_data()` function to simulate data using the GNG WDM estimated parameters, turn it into an emc object and then fit the model to it.
+
+```{r simulating data from the estimated parameters}
+# Simulate data from our model parameters
+sim <- make_data(parameters = sWDM_GNG,
+                 design = designWDMGNG,
+                 data=gng)
+
+# Make an emc object
+sim_sWDM_GNG <- make_emc(data = sim,
+                         design = designWDMGNG,
+                         type="single",
+                         prior = priorWDMGNG)
+
+# Fit the model to the simulated data
+# sim_sWDM_GNG <- fit(sim_sWDM_GNG)
+
+# Saving the model object
+# save(sim_sWDM_GNG, file = here("ddm", "individual", "models", "sim_sWDM_GNG.Rdata"))
+
+# Loading the model object
+load(here("ddm", "individual", "models", "sim_sWDM_GNG.Rdata"))
+```
+
+Here we use the `recovery()` function to assess how similar the parameters from the original GNG WDM and the one fit to the simulated data are to each other. It is a perfect recovery.
+
+### 4.2 Comparing the simulated DDM params to ground truth
+
+```{r parameter recovery}
+# Save the original parameters from the model (in transformed scale)
+ground_truth_params <- credint(sWDM_GNG)[[1]][,"50%"]
+
+# Compare parameters from the original to the simulated data
+recovery(emc = sim_sWDM_GNG, 
+         true_pars = ground_truth_params)
+```

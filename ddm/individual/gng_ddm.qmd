@@ -1,0 +1,294 @@
+---
+title: "Fitting Between-Trial Variability Parameters to GNG data"
+editor: visual
+---
+
+```{r load in packages, warning = F, message= F}
+# load in packages
+library(here)
+library(tidyverse)
+library(ggplot2)
+library(EMC2)
+```
+
+```{r load in custom functions}
+# load in all custom ddm functions
+source(here("ddm", "load.R"))
+```
+
+## 1. Read in the data
+
+We will be reading the already processed and combine GNG datasets.
+
+```{r reading in the data}
+# Read in the data
+gng_combined<- readRDS(here("ddm", "individual", "data", "gng_combined.rds"))
+
+# View the structure of the data
+str(gng_combined)
+```
+
+## 2. Specifying Between-Trial Variability DDMs
+
+### 2.1 Creating a custom function to generate between-trial variability DDMs
+
+```{r Making a custom function to help with creting between trial variability DDMs}
+# Create a custom function that will help in creating multiple between-trial variability DDM
+make_designDDMGNG <- function(formula, LT = .250) {
+  
+  design(
+    model = DDMGNG, 
+    factors = list( subjects = 1, S = c("ng", "go"), E = c("spd", "acc") ), 
+    Rlevels = c("TO", "RESP"), 
+    LT = LT, 
+    formula = formula, 
+    functions = list(
+      TIMEOUT = function(d) rep(1.5, nrow(d)), 
+      Rnogo = function(d) factor(rep("TO", nrow(d)), levels = c("TO", "RESP")), 
+      Rgo = function(d) factor(rep("RESP", nrow(d)), levels = c("TO", "RESP")))
+  )
+}
+```
+
+### 2.2 Creating the between-trial variability DDM designs
+
+```{r Creating the between trial variability DDM designs}
+#| output: false
+
+# Create a formula object with the WDM parameter specification
+WDM_formula <- list(a ~ E, 
+                    v ~ S * E, 
+                    t0 ~ E, 
+                    Z ~ E)
+
+# Specifying GNG DDM designs for estimating between-trial variability parameters (single)
+designGNG_SZ <- make_designDDMGNG(formula = c(WDM_formula, list = (SZ ~ 1)))
+designGNG_sv <- make_designDDMGNG(formula = c(WDM_formula, list = (sv ~ 1)))
+designGNG_st0 <- make_designDDMGNG(formula = c(WDM_formula, list = (st0 ~ 1)))
+
+# Specifying GNG DDM designs for estimating between-trial variability parameters (multiple)
+designGNG_SZ_sv <- make_designDDMGNG(formula = c(WDM_formula, list(SZ ~ 1, sv ~ 1)))
+designGNG_SZ_st0 <- make_designDDMGNG(formula = c(WDM_formula, list(SZ ~ 1, st0 ~ 1)))
+designGNG_sv_st0 <- make_designDDMGNG(formula = c(WDM_formula, list(sv ~ 1, st0 ~ 1)))
+
+# Specifying the full GNG DDM
+designGNG_full <- make_designDDMGNG(formula = c(WDM_formula, list(SZ ~ 1, sv ~ 1, st0 ~ 1)))
+```
+
+### 2.3 Creating priors distributions
+
+```{r creating prior distributions}
+# Prior means on EMC2's transformed scale
+pmean <- c(
+  a       = log(1.31),
+  v       = -1.8,
+  v_Sgo   = 2.5,
+  t0      = log(.38),
+  Z       = qnorm(.57),
+
+  # Between-trial variability parameters
+  SZ      = qnorm(.38),
+  sv      = log(1.2),
+  st0     = log(.03)
+)
+
+# Prior SDs on EMC2's transformed scale
+psd <- c(
+  a       = 0.25,
+  v       = 2.5,
+  v_Sgo   = 2.5,
+  t0      = 0.31,
+  Z       = 0.37,
+
+  # Between-trial variability parameters
+  SZ      = 0.75,
+  sv      = 0.70,
+  st0     = 0.90
+)
+
+# Creating the specific prior distributions for each between-trial variability DDM
+priorGNG_SZ <- prior(designGNG_SZ, pmean = pmean, psd = psd, type = "single")
+priorGNG_sv <- prior(designGNG_sv, pmean = pmean, psd = psd, type = "single")
+priorGNG_st0 <- prior(designGNG_st0, pmean = pmean, psd = psd, type = "single")
+
+priorGNG_SZ_sv <- prior(designGNG_SZ_sv, pmean = pmean, psd = psd, type = "single")
+priorGNG_SZ_st0 <- prior(designGNG_SZ_st0, pmean = pmean, psd = psd, type = "single")
+priorGNG_sv_st0 <- prior(designGNG_sv_st0, pmean = pmean, psd = psd, type = "single")
+
+priorGNG_full <- prior(designGNG_full, pmean = pmean, psd = psd, type = "single")
+```
+
+```{r Printing the default priors for the full GNG}
+# Print the full prior information for the full GNG
+priorGNG_full
+```
+
+### 2.4 Creating the emc objects
+
+```{r Creating the emc objects}
+# Create the emc objects so we can fit the DDMs (single)
+sDDM_GNG_SZ <- make_emc(data = gng_combined, 
+                        design = designGNG_SZ, type="single", prior=priorGNG_SZ)
+sDDM_GNG_sv <- make_emc(data = gng_combined, 
+                        design = designGNG_sv, type="single", prior=priorGNG_sv)
+sDDM_GNG_t0 <- make_emc(data = gng_combined, 
+                        design = designGNG_st0, type="single", prior=priorGNG_st0)
+
+# Create the emc objects so we can fit the DDMs (multiple)
+sDDM_GNG_SZ_sv <- make_emc(data = gng_combined, 
+                           design = designGNG_SZ_sv, type="single", prior=priorGNG_SZ_sv)
+sDDM_GNG_SZ_st0 <- make_emc(data = gng_combined, 
+                           design = designGNG_SZ_st0, type="single", prior=priorGNG_SZ_st0)
+sDDM_GNG_sv_st0 <- make_emc(data = gng_combined, 
+                           design = designGNG_sv_st0, type="single", prior=priorGNG_sv_st0)
+
+# Create the emc object for the full DDM
+sDDM_GNG_full <- make_emc(data = gng_combined, 
+                          design = designGNG_full, type="single", prior=priorGNG_full)
+```
+
+### 2.5 Fitting the between-trial variability DDMs
+
+```{r Fitting the between trial variability DDMs}
+# Fitting the models
+# sDDM_GNG_SZ <- fit(sDDM_GNG_SZ)
+# sDDM_GNG_sv <- fit(sDDM_GNG_sv)
+# sDDM_GNG_t0 <- fit(sDDM_GNG_t0)
+# sDDM_GNG_SZ_sv <- fit(sDDM_GNG_SZ_sv) 
+# sDDM_GNG_SZ_st0 <- fit(sDDM_GNG_SZ_st0) 
+# sDDM_GNG_sv_st0 <- fit(sDDM_GNG_sv_st0) 
+# sDDM_GNG_full <- fit(sDDM_GNG_full)
+
+# Saving the models
+# save(sDDM_GNG_SZ, file = here("ddm", "individual", "models", "sDDM_GNG_SZ.Rdata"))
+# save(sDDM_GNG_sv, file = here("ddm", "individual", "models", "sDDM_GNG_sv.Rdata"))
+# save(sDDM_GNG_t0, file = here("ddm", "individual", "models", "sDDM_GNG_t0.Rdata"))
+# save(sDDM_GNG_SZ_sv, file = here("ddm", "individual", "models", "sDDM_GNG_SZ_sv.Rdata"))
+# save(sDDM_GNG_SZ_st0, file = here("ddm", "individual", "models", "sDDM_GNG_SZ_st0.Rdata"))
+# save(sDDM_GNG_sv_st0, file = here("ddm", "individual", "models", "sDDM_GNG_sv_st0.Rdata"))
+# save(sDDM_GNG_full, file = here("ddm", "individual", "models", "sDDM_GNG_full.Rdata"))
+
+# Loading the model objects
+load(here("ddm", "individual", "models", "sDDM_GNG_SZ.Rdata"))
+load(here("ddm", "individual", "models", "sDDM_GNG_sv.Rdata"))
+load(here("ddm", "individual", "models", "sDDM_GNG_t0.Rdata"))
+load(here("ddm", "individual", "models", "sDDM_GNG_SZ_sv.Rdata"))
+load(here("ddm", "individual", "models", "sDDM_GNG_SZ_st0.Rdata"))
+load(here("ddm", "individual", "models", "sDDM_GNG_sv_st0.Rdata"))
+load(here("ddm", "individual", "models", "sDDM_GNG_full.Rdata"))
+```
+
+### 2.6 Checking model convergence
+
+All models seemd to converge without issues
+
+```{r checking model convergence, warning = F}
+check(sDDM_GNG_SZ, plot = FALSE)
+check(sDDM_GNG_sv, plot = FALSE)
+check(sDDM_GNG_t0, plot = FALSE)
+check(sDDM_GNG_SZ_sv, plot = FALSE)
+check(sDDM_GNG_SZ_st0, plot = FALSE)
+check(sDDM_GNG_sv_st0, plot = FALSE)
+check(sDDM_GNG_full, plot = FALSE)
+```
+
+## 3. Are our between-trial variability GNG DDMs capturing the data well?
+
+### 3.1 Generating our predicted datasets
+
+```{r Produce predicted values}
+# Use the predict function to obtain the fitted values
+# ppDDM_GNG_SZ <- predict(sDDM_GNG_SZ, n_cores=4, n_post=200)
+# ppDDM_GNG_sv <- predict(sDDM_GNG_sv, n_cores=4, n_post=200)
+# ppDDM_GNG_t0 <- predict(sDDM_GNG_t0, n_cores=4, n_post=200)
+# ppDDM_GNG_SZ_sv <- predict(sDDM_GNG_SZ_sv, n_cores=4, n_post=200)
+# ppDDM_GNG_SZ_st0 <- predict(sDDM_GNG_SZ_st0, n_cores=4, n_post=200)
+# ppDDM_GNG_sv_st0 <- predict(sDDM_GNG_sv_st0, n_cores=4, n_post=200)
+# ppDDM_GNG_full <- predict(sDDM_GNG_full, n_cores=4, n_post=200)
+
+# Saving the predicted object
+# saveRDS(ppDDM_GNG_SZ, file = here("ddm", "individual", "predicted_values", "ppDDM_GNG_SZ.rds"))
+# saveRDS(ppDDM_GNG_sv, file = here("ddm", "individual", "predicted_values", "ppDDM_GNG_sv.rds"))
+# saveRDS(ppDDM_GNG_t0, file = here("ddm", "individual", "predicted_values", "ppDDM_GNG_t0.rds"))
+# saveRDS(ppDDM_GNG_SZ_sv, file = here("ddm", "individual", "predicted_values", "ppDDM_GNG_SZ_sv.rds"))
+# saveRDS(ppDDM_GNG_SZ_st0, file = here("ddm", "individual", "predicted_values", "ppDDM_GNG_SZ_st0.rds"))
+# saveRDS(ppDDM_GNG_sv_st0, file = here("ddm", "individual", "predicted_values", "ppDDM_GNG_sv_st0.rds"))
+# saveRDS(ppDDM_GNG_full, file = here("ddm", "individual", "predicted_values", "ppDDM_GNG_full.rds"))
+
+# Loading the predicted values data frame
+ppDDM_GNG_SZ <- readRDS(here("ddm", "individual", "predicted_values", "ppDDM_GNG_SZ.rds"))
+ppDDM_GNG_sv <- readRDS(here("ddm", "individual", "predicted_values", "ppDDM_GNG_sv.rds"))
+ppDDM_GNG_t0 <- readRDS(here("ddm", "individual", "predicted_values", "ppDDM_GNG_t0.rds"))
+ppDDM_GNG_SZ_sv <- readRDS(here("ddm", "individual", "predicted_values", "ppDDM_GNG_SZ_sv.rds"))
+ppDDM_GNG_SZ_st0 <- readRDS(here("ddm", "individual", "predicted_values", "ppDDM_GNG_SZ_st0.rds"))
+ppDDM_GNG_sv_st0 <- readRDS(here("ddm", "individual", "predicted_values", "ppDDM_GNG_sv_st0.rds"))
+ppDDM_GNG_full <- readRDS(here("ddm", "individual", "predicted_values", "ppDDM_GNG_full.rds"))
+```
+
+### 3.2 Examining the predicted datasets for the SZ DDM
+
+```{r Examining the predicted datasets for the SZ DDM}
+plot_density(gng_combined, ppDDM_GNG_SZ, factors = c("S"))
+plot_cdf(gng_combined, ppDDM_GNG_SZ, factors = c("S"))
+```
+
+### 3.3 Examining the predicted datasets for the sv DDM
+
+```{r Examining the predicted datasets for the sv DDM}
+plot_density(gng_combined, ppDDM_GNG_sv, factors = c("S"))
+plot_cdf(gng_combined, ppDDM_GNG_sv, factors = c("S"))
+```
+
+### 3.4 Examining the predicted datasets for the t0 DDM
+
+```{r Examining the predicted datasets for the t0 DDM}
+plot_density(gng_combined, ppDDM_GNG_t0, factors = c("S"))
+plot_cdf(gng_combined, ppDDM_GNG_t0, factors = c("S"))
+```
+
+### 3.5 Examining the predicted datasets for the SZ and sv DDM
+
+```{r Examining the predicted datasets for the SZ and sv DDM}
+plot_density(gng_combined, ppDDM_GNG_SZ_sv, factors = c("S"))
+plot_cdf(gng_combined, ppDDM_GNG_SZ_sv, factors = c("S"))
+```
+
+### 3.6 Examining the predicted datasets for the SZ and st0 DDM
+
+```{r Examining the predicted datasets for the SZ and st0 DDM}
+plot_density(gng_combined, ppDDM_GNG_SZ_st0, factors = c("S"))
+plot_cdf(gng_combined, ppDDM_GNG_SZ_st0, factors = c("S"))
+```
+
+### 3.7 Examining the predicted datasets for the sv and st0 DDM
+
+```{r Examining the predicted datasets for the sv and st0 DDM}
+plot_density(gng_combined, ppDDM_GNG_sv_st0, factors = c("S"))
+plot_cdf(gng_combined, ppDDM_GNG_sv_st0, factors = c("S"))
+```
+
+### 3.8 Examining the predicted datasets for the full DDM
+
+```{r Examining the predicted datasets for the full DDM}
+plot_density(gng_combined, ppDDM_GNG_full, factors = c("S"))
+plot_cdf(gng_combined, ppDDM_GNG_full, factors = c("S"))
+```
+
+## 4. Which is the best model?
+
+### 4.1 Model comparison
+
+```{r run a model comparison}
+# Load the initial GNG WDM
+load(here("ddm", "individual", "models", "sWDM_GNG_combined.Rdata"))
+
+# Run a model comparison
+model_comparison <- compare(list(WDM = sWDM_GNG_combined,
+                                 SZ=sDDM_GNG_SZ, 
+                                 sv=sDDM_GNG_sv, 
+                                 t0=sDDM_GNG_t0, 
+                                 SZ_sv=sDDM_GNG_SZ_sv,
+                                 SZ_st0=sDDM_GNG_SZ_st0,
+                                 sv_st0=sDDM_GNG_sv_st0,
+                                 full=sDDM_GNG_full))
+```

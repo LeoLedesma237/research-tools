@@ -131,7 +131,6 @@ window.Quarto = {
 };
 </script>
 
-<link rel="stylesheet" href="styles.css">
 </head>
 
 <body class="nav-fixed">
@@ -155,11 +154,25 @@ window.Quarto = {
     <a class="nav-link" href="../index.html"> 
 <span class="menu-text">Home</span></a>
   </li>  
-  <li class="nav-item">
-    <span class="nav-link">
-<span class="menu-text">about.qmd</span>
-    </span>
+  <li class="nav-item dropdown ">
+    <a class="nav-link dropdown-toggle" href="#" id="nav-menu-drift-diffusion-models" role="link" data-bs-toggle="dropdown" aria-expanded="false">
+ <span class="menu-text">Drift Diffusion Models</span>
+    </a>
+    <ul class="dropdown-menu" aria-labelledby="nav-menu-drift-diffusion-models">    
+        <li>
+    <a class="dropdown-item" href="../ddm/individual.qmd">
+ <span class="dropdown-text">Individual-Level Models</span></a>
   </li>  
+        <li>
+    <a class="dropdown-item" href="../ddm/hierarchical.qmd">
+ <span class="dropdown-text">Hierarchical Models</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="../ddm/joint.qmd">
+ <span class="dropdown-text">Joint Neuroimaging Models</span></a>
+  </li>  
+    </ul>
+  </li>
 </ul>
           </div> <!-- /navcollapse -->
             <div class="quarto-navbar-tools">
@@ -405,17 +418,17 @@ $SZ
 # A tibble: 2 × 4
   stimulus n_trials n_correct prop_correct
   &lt;fct&gt;       &lt;int&gt;     &lt;int&gt;        &lt;dbl&gt;
-1 1             700       521        0.744
-2 2             700       507        0.724
+1 1             700       504        0.72 
+2 2             700       536        0.766
 
 $reaction_time
 # A tibble: 4 × 7
   stimulus correct   q10   q30   q50   q70   q90
   &lt;fct&gt;    &lt;lgl&gt;   &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;
-1 1        FALSE   0.368 0.411 0.459 0.577 0.743
-2 1        TRUE    0.359 0.403 0.465 0.562 0.771
-3 2        FALSE   0.364 0.420 0.472 0.568 0.721
-4 2        TRUE    0.367 0.413 0.468 0.564 0.742</code></pre>
+1 1        FALSE   0.356 0.413 0.481 0.557 0.719
+2 1        TRUE    0.360 0.410 0.484 0.575 0.755
+3 2        FALSE   0.366 0.419 0.477 0.554 0.758
+4 2        TRUE    0.361 0.425 0.490 0.588 0.801</code></pre>
 </div>
 </div>
 </section>
@@ -612,14 +625,14 @@ Markov Chain Monte Carlo (MCMC) output:
 Start = 1 
 End = 7 
 Thinning interval = 1 
-                 a         v     v_S2          t0         Z
-[1,]  0.0004868142 -4.094280 2.077948 -0.77715671 0.1710524
-[2,]  0.9550651548 -3.414172 4.301023 -1.23060993 0.4740111
-[3,]  0.7728737286 -3.059506 2.154871 -1.04622695 0.2079890
-[4,]  0.0715363781  1.940553 4.587189 -0.75820634 0.3780731
-[5,]  0.4162944464 -2.727785 0.587204 -0.09481251 0.6221984
-[6,] -0.4294912391 -5.091859 2.685828 -0.23252294 0.1854467
-[7,]  1.3657299905 -4.719604 3.874585 -1.39077494 0.6927095
+               a          v       v_S2         t0           Z
+[1,]  0.28885969  0.5865815 -2.0152192 -0.8986636  0.31873831
+[2,] -0.06937537  0.0171973  0.9903349 -1.2321398 -0.48146124
+[3,]  0.27898273  2.4950467  3.1988453 -1.0798997 -0.06866100
+[4,]  1.16420476  0.3102224  7.8890797 -0.7084550  0.14593980
+[5,] -0.13934349 -6.2354375  4.2050115 -0.8695379  0.17162166
+[6,] -0.09104995 -6.6251105  1.7576113 -0.6763940 -0.17574031
+[7,] -0.25605079 -1.4135939  1.4951143 -0.7424490  0.07746449
 
 attr(,"class")
 [1] "mcmc.list"</code></pre>
@@ -660,7 +673,7 @@ attr(,"class")
 <pre><code>Processing data set 1</code></pre>
 </div>
 <div class="cell-output cell-output-stderr">
-<pre><code>Likelihood speedup factor: 8 (174 unique trials)</code></pre>
+<pre><code>Likelihood speedup factor: 8 (176 unique trials)</code></pre>
 </div>
 <div class="sourceCode cell-code" id="cb33"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Print the object</span></span>
 <span id="cb33-2"><a href="#cb33-2" aria-hidden="true" tabindex="-1"></a>sWDM</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
@@ -779,7 +792,7 @@ Z     0.484  0.502  0.520</code></pre>
 <span id="cb43-4"><a href="#cb43-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Saving the predicted object</span></span>
 <span id="cb43-5"><a href="#cb43-5" aria-hidden="true" tabindex="-1"></a><span class="co">#saveRDS(ppWDM, file = here("ddm", "predicted_values", "ppWDM.rds"))</span></span>
 <span id="cb43-6"><a href="#cb43-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb43-7"><a href="#cb43-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Loading the model object</span></span>
+<span id="cb43-7"><a href="#cb43-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Loading the predicted datasets</span></span>
 <span id="cb43-8"><a href="#cb43-8" aria-hidden="true" tabindex="-1"></a>ppWDM <span class="ot">&lt;-</span> <span class="fu">readRDS</span>(<span class="fu">here</span>(<span class="st">"ddm"</span>, <span class="st">"predicted_values"</span>, <span class="st">"ppWDM.rds"</span>))</span>
 <span id="cb43-9"><a href="#cb43-9" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb43-10"><a href="#cb43-10" aria-hidden="true" tabindex="-1"></a><span class="co"># View the predicted data</span></span>
@@ -806,16 +819,16 @@ Z     0.484  0.502  0.520</code></pre>
 <span id="cb45-7"><a href="#cb45-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">head</span>(<span class="dv">10</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stdout">
 <pre><code>   trials subjects S R        rt postn R_pred   rt_pred
-1       1        1 1 1 0.5731820     1      1 0.4381319
-2       2        1 1 1 0.7552013     1      1 0.3644504
-3       3        1 1 1 0.5359931     1      2 0.6358826
-4       4        1 1 2 0.3725628     1      1 0.6272144
-5       5        1 1 1 0.3569106     1      1 0.4352455
-6       6        1 1 1 0.7375925     1      1 0.7563688
-7       7        1 1 1 0.3863312     1      1 0.3690505
-8       8        1 1 2 0.4506186     1      1 0.9646100
-9       9        1 1 1 0.3960335     1      1 0.4296437
-10     10        1 1 2 0.4701672     1      1 0.9045841</code></pre>
+1       1        1 1 1 0.3514641     1      1 0.4381319
+2       2        1 1 2 0.9221868     1      1 0.3644504
+3       3        1 1 1 0.3980371     1      2 0.6358826
+4       4        1 1 2 0.5398527     1      1 0.6272144
+5       5        1 1 2 0.3785538     1      1 0.4352455
+6       6        1 1 1 0.3825005     1      1 0.7563688
+7       7        1 1 1 0.5211259     1      1 0.3690505
+8       8        1 1 2 0.8010961     1      1 0.9646100
+9       9        1 1 1 0.3618782     1      1 0.4296437
+10     10        1 1 1 0.4935663     1      1 0.9045841</code></pre>
 </div>
 <div class="sourceCode cell-code" id="cb47"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb47-1"><a href="#cb47-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Why so many rows?</span></span>
 <span id="cb47-2"><a href="#cb47-2" aria-hidden="true" tabindex="-1"></a><span class="fu">xtabs</span>(<span class="sc">~</span>S<span class="sc">+</span> postn, ppWDM)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
@@ -892,8 +905,8 @@ S    39  40  41  42  43  44  45  46  47  48  49  50
 <span id="cb51-23"><a href="#cb51-23" aria-hidden="true" tabindex="-1"></a>agg2; agg4_pp</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stdout">
 <pre><code>  S       pR2
-1 1 0.2557143
-2 2 0.7242857</code></pre>
+1 1 0.2800000
+2 2 0.7657143</code></pre>
 </div>
 <div class="cell-output cell-output-stdout">
 <pre><code>  S      2.5%       50%     97.5%
@@ -950,11 +963,11 @@ S    39  40  41  42  43  44  45  46  47  48  49  50
 <p>In our example, we got r = 0.998, which is phenomenal. The RMSE is not that important.</p>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb59"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb59-1"><a href="#cb59-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Save the original parameters from the model (in transformed scale)</span></span>
-<span id="cb59-2"><a href="#cb59-2" aria-hidden="true" tabindex="-1"></a>groud_truth_params <span class="ot">&lt;-</span> <span class="fu">credint</span>(sWDM)[[<span class="dv">1</span>]][,<span class="st">"50%"</span>]</span>
+<span id="cb59-2"><a href="#cb59-2" aria-hidden="true" tabindex="-1"></a>ground_truth_params <span class="ot">&lt;-</span> <span class="fu">credint</span>(sWDM)[[<span class="dv">1</span>]][,<span class="st">"50%"</span>]</span>
 <span id="cb59-3"><a href="#cb59-3" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb59-4"><a href="#cb59-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Compare parameters from the original to the simulated data</span></span>
 <span id="cb59-5"><a href="#cb59-5" aria-hidden="true" tabindex="-1"></a><span class="fu">recovery</span>(<span class="at">emc =</span> sim_sWDM, </span>
-<span id="cb59-6"><a href="#cb59-6" aria-hidden="true" tabindex="-1"></a>         <span class="at">true_pars =</span> groud_truth_params)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb59-6"><a href="#cb59-6" aria-hidden="true" tabindex="-1"></a>         <span class="at">true_pars =</span> ground_truth_params)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output-display">
 <div>
 <figure class="figure">

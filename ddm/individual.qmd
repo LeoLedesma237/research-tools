@@ -1,0 +1,120 @@
+---
+title: "Individual-Level Drift Diffusion Models"
+---
+
+This page will explain **individual-level drift diffusion models** (DDM) within 
+the framework of two choice decision making tasks and Go/No-Go tasks. These models 
+are designed to take response (accuracy) and reaction time data, and explain them 
+through latent cognitive processes. For this page, we will only be exploring these 
+models within the context of one subject, thus they are not hierarchical. Moreover, 
+the code present within these pages predominantly utilize functions within the **EMC2 
+package**. In addition, a few custom functions were used to get descriptives from our 
+datasets.
+
+
+## Standard Drift Diffusion Model
+
+::: {.card}
+::: {.card-body}
+
+### 1. Introduction to Wiener Diffusion Models
+
+Learn the foundations of the Wiener Diffusion Model (WDM) for two-choice data. 
+This guide will provide in-depth information for simulating two-choice data, 
+visualizing data descriptives, specifying prior distributions, fitting the 
+WDM, checking model converged, assessing whether the model nicely captures the data, 
+and running a parameter recovery test. 
+
+[**Get Started →**](individual/2C_wdm.qmd)
+
+:::
+:::
+
+::: {.card}
+::: {.card-body}
+
+### 2. A Comparison Between Two Choice WDM and Go/No-Go WDM
+
+Learn how the standard WDM can be adapted for Go/No-Go (GNG) tasks. Specifically, 
+we take simulated 2-choice data (2C), convert it into a GNG task, then compare how a
+regular WDM fitted to the 2C and a GNG WDM fitted to the GNG produce the same 
+parameter estimates. This was inspired by the work of Ratcliff et al. (2018).
+
+[**Read Tutorial →**](individual/2C_gng_wdm.qmd)
+
+:::
+:::
+
+
+::: {.card}
+::: {.card-body}
+
+### 3. Introduction to DDM Between-Trial Variability Parameters Using Simulation
+
+This will be an introduction to simulating data with between-trial variability
+parameters. In these cases the models are no longer referred to as WDM, and instead
+we can use the general name of DDM. In this guide, we will be discussing the 
+three between-trial variability parameters: relative starting point variability (SZ),
+drift rate variability (sv), and non-decision time variability (st0).
+
+[**Read Tutorial →**](individual/2C_ddm.qmd)
+
+:::
+:::
+
+
+
+
+
+## Go/No-Go Drift Diffusion Model
+
+::: {.card}
+::: {.card-body}
+
+### 1. Introduction to the Go/No-Go Wiener Diffusion Model
+
+Learn how to simulate GNG data, specify prior distributions specifically for the
+GNG, fit a GNG WDM to the data, check model convergence, assess whether the model 
+is explaining the data well and run a parameter recovery test.
+
+[**Get Started →**](individual/gng_wdm.qmd)
+
+:::
+:::
+
+
+
+::: {.card}
+::: {.card-body}
+
+### 2. Fitting a GNG WDM to Real GNG Data to Estimate Condition Effects
+
+In the GNG WDM introduction guide, we fitted models to simulated GNG data. We should
+expect for the models to replicate simulated data well. However, with real data,
+it is not uncommon to run into challenges. In this guide, we fit GNG WDMs to a 
+GNG task where in one condition the participant was prioritizing speed and in 
+another prioritizing accuracy. 
+
+[**Read Tutorial →**](individual/gng_wdm2.qmd)
+
+:::
+:::
+
+
+::: {.card}
+::: {.card-body}
+
+### 3. Fitting a GNG DDM With Between-Trial Variability Parameters
+
+This guide is a continuation of the fitting a GNG WDM to real GNG data. In the
+previous guide, we were unable to nicely explain the GNG data with our GNG WDM.
+In this example, we will explore how the DDM can have between-trial variability
+parameters specified that can aid in recovering the data better.
+
+[**Read Tutorial →**](individual/gng_ddm.qmd)
+
+:::
+:::
+
+
+

@@ -4,14 +4,24 @@ project:
 
 website:
   title: "Research Tools"
+
   navbar:
     left:
       - href: index.qmd
         text: Home
-      - about.qmd
+
+      - text: Drift Diffusion Models
+        menu:
+          - href: ddm/individual.qmd
+            text: Individual-Level Models
+
+          - href: ddm/hierarchical.qmd
+            text: Hierarchical Models
+
+          - href: ddm/joint.qmd
+            text: Joint Neuroimaging Models
 
 format:
   html:
     theme: cosmo
-    css: styles.css
     toc: true

@@ -1,0 +1,373 @@
+---
+title: "Introduction to Go/No-Go Wiener Diffusion Models"
+editor: visual
+---
+
+In this document, we will be learning how to simulate Go/No-Go (GNG) data directly rather than transforming simulated two-choice data into a GNG. Additionally, we will be discussing how to specify GNG specific prior distributions from the existing literature, how to fit a GNG WDM, check whether the model converged, assess if the model does a good job explaining the data and then running a parameter recovery test. 
+
+
+```{r load in packages, warning = F, message= F}
+# load in packages
+library(here)
+library(tidyverse)
+library(ggplot2)
+library(EMC2)
+```
+
+```{r load in custom functions}
+# load in all custom ddm functions
+source(here("ddm", "load.R"))
+```
+
+## 1. Correctly simulating GNG data
+
+Like in the previous guides, we will only be fitting **Wiener diffiusion models** (WDM), which is a DDM where between-trial variability parameters (e.g., Sz, St0, SZ) are not estimated. Thus our model objects (emc objects to be specific) will have 'WDM' in the name.
+
+### 1.1 Specifying a GNG WDM
+
+We start by creating a model design object ('emc.design') using the `design()` function where we specify that we will be fitting a 'DDMGNG', what the factors of our dataset will be (e.g., esubjects, S), what the responses will be ("TO" is the reference so it will map to the lower boundary), our WDM specifications within formula, and additional information about what values within R correspond to a go vs a no-go response.
+
+```{r Creating a GNG design object}
+#| output: false
+
+# Generating the model specifications for a GnG dataset
+designWDMGNG <- design(model = DDMGNG,
+                       factors=list(subjects=1, S=c("ng", "go")),
+                       Rlevels = c("TO", "RESP"),
+                       formula = list(a ~ 1,
+                                      v ~ S, 
+                                      t0 ~ 1,
+                                      Z ~ 1),
+                       functions = list(
+                         TIMEOUT = function(d) rep(1.5, nrow(d)),
+                         Rnogo  = function(d) factor(rep("TO",   nrow(d)), levels = c("TO", "RESP")),
+                         Rgo    = function(d) factor(rep("RESP", nrow(d)), levels = c("TO", "RESP"))
+                        ))
+```
+
+### 1.2 Choosing the GNG WDM parameter values
+
+Here we use the `sampled_pars()` function to extract an empty vector of parameter names that will be estimated. We then choose what these values will be and confirm that we did this correctly with the `mapped_pars()` function.
+
+```{r Choosing the WDM parameter values}
+# Choose parameters for simulation, first getting a vector with the right name
+parsWDMGNG <- sampled_pars(designWDMGNG)
+
+# Then choosing some values. Note that we include transforms here to illustrate
+# the scale on which sampling occurs
+parsWDMGNG[] <- c(log(1), -1, 4.2, log(.3), qnorm(.5))
+
+# Confirm our parameters were specified correctly
+mapped_pars(designWDMGNG, parsWDMGNG)
+```
+
+### 1.3 Simulating Racliff et al. (2018) GNG data
+
+We are using Ratcliff et al. (2018) same data structure from their study to generate our GnG data. Their GNG task had 960 trials for each subject, where 720 trials were 'go' trials (75%) and 240 trials (25%) were 'no-go' trials. Thus we will do the same but just for one subject, as we will not be fitting hierarchical models in this document.
+
+When simulating the data, we must make sure that all of our non-numeric variables are factors and not characters, and we must make the reference level consistent with the emc model object, such that "ng" and "TO" are the reference levels.
+
+```{r making the data skeleton structure}
+# Specify task structure
+n_trials <- 960
+prop_nogo <- 0.25
+
+# Calculate number of Go and No-Go trials
+n_nogo <- round(n_trials * prop_nogo)
+n_go   <- n_trials - n_nogo
+
+# Create simulation framework
+GNG_framework <- data.frame(
+  trials = seq_len(n_trials),
+  subjects = factor(1),
+  S = factor(
+    sample(c(rep("go", n_go), rep("ng", n_nogo))),
+    levels = c("ng", "go")
+  ),
+  R = factor(
+    rep(NA_character_, n_trials),
+    levels = c("TO", "RESP")
+  )
+)
+
+# Simulate the gng data
+gng <- make_data(data = GNG_framework,
+                 parameters = parsWDMGNG, 
+                 design = designWDMGNG) 
+```
+
+### 1.4 Getting descriptives from the GNG data
+
+We can use the `data_design()` custom function to be able to use the `get_descriptives()` function to get some nice descriptives of our GNG data. We can see the number of trials, the proportion of which are correct within stimulus type ('ng', 'go') and information on reaction times.
+
+```{r creating the data_design object and getting descriptives}
+# Create the data_design for the gng data
+gng_design <- data_design(
+  stimulus = S,
+  response = R,
+  rt = rt,
+  correct = (S == "go" & R == "RESP") | (S == "ng" & R == "TO"),
+  id = subjects
+)
+
+# Get the descriptives from the datasets
+get_descriptives(gng, gng_design)
+
+```
+
+### 1.5 Plotting the defective density distribution for a GNG
+
+Here we can use the `plot_defectiveDensityGNG()` function to compare the reaction time distribution between 'go' (correct) and 'ng' (incorrect) trials.
+
+```{r Plotting a defective density for the gng data}
+# Plot the defective density info
+plot_defectiveDensityGNG(gng, gng_design)
+```
+
+## 2. Generating GNG Specific Prior Distributions
+
+### 2.1 Specifying prior means for a GNG
+
+To come up with theoretical values for the GNG DDM, we identified a four papers that have used a GNG DDM, along with their reported results. **Note**: in the columns, Z is the relative starting point which is defined as z/a. Additionally, the following table was generated using a mixture of help from Notebook LM and ChatGPT.
+
+| Study | Sample | Model | Scaling | Go v | NG v | a | Ter | Z |
+|--------|--------|--------|--------|--------|--------|--------|--------|--------|
+| Gomez et al. (2007) Exp 1 | Healthy young adults (n = 20) | GnG DDM | s = 0.1 | Med-Freq: 0.279, Low-Freq: 0.147 | Nonword: -0.240 | a = 0.125 | Ter = 0.436s | Z = 0.544 |
+| Gomez et al. (2007) Exp 2 | Healthy young adults (n = 19) | GnG DDM | s = 0.1 | Med-Freq: 0.259, Low-Freq: 0.114 | Nonword: -0.245 | a = 0.101 | Ter = 0.411s | Z = 0.604 |
+| Gomez et al. (2007) Exp 3 | Healthy young adults (n = 21) | GnG DDM | s = 0.1 | Nonword Go: 0.207 | Med-Freq: -0.215, Low-Freq: -0.096 | a = 0.114 | Ter = 0.474s | Z = 0.474 |
+| Gomez et al. (2007) Exp 4 | Healthy young adults (n = 28) | GnG DDM | s = 0.1 | Accuracy: 0.262 (Med). 0.096 (Low), Speed: 0.262 | Accuracy: -0.265, Speed: -0.265 | a = 0.105 - 0.114 | Ter = 0.435s (both) | Z = 0.570 - 0.657 |
+| Gomez et al. (2007) Exp 5 | Healthy young adults (n = 11) | GnG DDM | s = 0.1 | Easy: 0.591, Hard: 0.178 | Easy: -0.404, Hard: -0.009 | a = 0.111 | Ter = 0.263s | Z = 0.577 |
+| Gomez et al. (2007) Exp 6 | Healthy young adults (n = 14) | GnG DDM | s = 0.1 | v1: 0.136, v2: 0.252 | v1: -0.220, v2: -0.262 | a = 0.123 | Ter = 0.367s | Z = 0.496 |
+| Ratcliff et al. (2018) Exp 1 | Healthy young adults (n=39) | DDM GnG (75% Go) | s = 0.1 | easy: 0.341, hard: 0.223 | easy: -0.162, hard: -0.008 | a = 0.139 | Ter = 0.379 | Z = 0.608 |
+| Ratcliff et al. (2018) Exp 2 | Healthy young adults (n=31) | DDM GnG (75% Go) | s = 0.1 | easy: 0.294, hard: 0.202 | easy: -0.133, hard: -0.011 | a = 0.145 | Ter = 0.363 | Z = 0.523 |
+| Huang-Pollock et al. (2017) | Children (8-12), ADHD: n = 46, Control: n = 21 | GnG DDM (75% Go) | s = 0.1 | ADHD = 0.238, Ctrl = 0.285 | ADHD = -0.157, Ctrl = -0.197 | ADHD = 0.162, Ctrl = 0.160 | ADHD = 0.415s, Ctrl = 0.437s | ADHD = 0.568, Ctrl = 0.625 |
+| Huang-Pollock et al. (2017) | Children (8-12), ADHD: n = 51, Control: n = 18 | GnG DDM (75% Go) | s = 0.1 | ADHD = 0.223, Ctrl = 0.250 | ADHD = -0.109, Ctrl = -0.198 | ADHD = 0.152, Ctrl = 0.152 | ADHD = 0.393s, Ctrl = 0.403s | ADHD = 0.678, Ctrl = 0.691 |
+| Cao et al. (2026) | Healthy adults (N = 36) | DDM GNG | s = 1.0 | go: 4.093 | ng: -2.194 | a: 1.579 | Ter = 0.253s | Z = 0.402 |
+| Cao et al. (2026) | Healthy adults (N = 36) Sleep Deprived | DDM GNG | s = 1.0 | go: 2.947 | ng: -1.670 | a: 0.990 | Ter = 0.256s | Z = 0.462 |
+
+We can use the information above to generate a **broad summary table** to better make sense of this information. These parameter estimates are **means**, meaning they are an average of multiple participant's GNG performance. Due to this, while not present below, it is possible for **no-go drift rates to be positive** due to poor performance.
+
+| Parameter | Estimate (n) | Mean   | SD     | Min    | Max    |
+|-----------|--------------|--------|--------|--------|--------|
+| Go v      | 22           | 2.520  | 1.053  | 0.960  | 5.910  |
+| Ng v      | 20           | -1.791 | 0.992  | -4.040 | -0.080 |
+| a         | 15           | 1.307  | 0.229  | 0.990  | 1.620  |
+| Ter       | 15           | 0.381s | 0.071s | 0.253s | 0.474s |
+| Z         | 15           | 0.565  | 0.083  | 0.402  | 0.691  |
+
+From this information, we can essentially now create prior distributions where we use the means presented here along with the standard deviations but in the transformed scale.
+
+**Citations**:
+
+-   Ratcliff, R., Huang-Pollock, C., & McKoon, G. (2018). Modeling individual differences in the go/no-go task with a diffusion model. Decision, 5(1), 42.
+-   Huang-Pollock, C., Ratcliff, R., McKoon, G., Shapiro, Z., Weigard, A., & Galloway-Long, H. (2017). Using the diffusion model to explain cognitive deficits in attention deficit hyperactivity disorder. Journal of abnormal child psychology, 45(1), 57-68.
+-   Gomez, P., Ratcliff, R., & Perea, M. (2007). A model of the go/no-go task. Journal of Experimental Psychology: General, 136(3), 389.
+-   Cao, Y., Luo, J., Li, J., Wang, L., & Ma, N. (2026). Commonality and diversity of impairments in inhibitory tasks after total sleep deprivation: evidence from drift diffusion model. SLEEPJ, 49(3), zsaf355.
+
+```{r specifying the GNG prior means}
+# Specify the prior means in the transformed scale
+pmean <- c(
+  a = log(1.31), 
+  v = -1.8, 
+  v_Sgo = 2.5,  
+  t0 = log(.38),
+  Z = qnorm(.57) 
+)
+```
+
+### 2.2 Specifying prior standard deviations for a GNG
+
+In the introduction to the DDM document, we used the following rule to calculate prior standard deviations (a heuristic):
+
+$$ SD = \frac{\text{MAX} - \text{MIN}}{4}$$ The problem is, when we did that we had estimates nicely summarized for us from a study that reviewed 23 DDM studies. In our case, we reported parameter estimates from literally 4 studies- thus using the formula above, while informative, might lead us to have very restricted ranges. Instead, what we can do is keep the same logic but change the denominator from 4 down to 2 for now, until there are more studies available or someone nicely summerizes it all for us.
+
+$$ SD_{GNG} = \frac{\text{MAX} - \text{MIN}}{2}$$
+
+boundary separation (a): (log(1.620) - log(0.990))/2 = 0.25 non-decision time (Ter): (log(0.474) - log(0.253))/2 = 0.31 relative-starting point (Z): (qnorm(0.691) - qnorm(0.402))/2 = 0.37
+
+We purposly kept the drift rates wide (2.5) rather than using the formula above, just in case we have very poor performers in our datasets. The same decision was made when specifying the prior distribution for the 2C DDM.
+
+```{r Specifying the GNG prior standard deviations}
+# Standard deviations for the GNG priors
+psd <- c(
+  a = 0.25,     # Spread for log(a)
+  v = 2.5,     # Spread for drift rate v (ng)
+  v_Sgo = 2.5,  # Spread for drift rate v (go)
+  t0 = 0.31,   # Spread for log(t0)
+  Z = 0.37     # Spread for probit(Z)
+)
+
+# Standard deviations from the 2C DDM priors
+#psd <- c(
+#  a = 0.5,     # Spread for log(a)
+#  v = 2.5,     # Spread for drift rate v (S1)
+#  v_S2 = 2.5,  # Spread for drift rate v (S2)
+#  t0 = 0.38,   # Spread for log(t0)
+#  Z = 0.35     # Spread for probit(Z)
+#)
+```
+
+### 2.3 Creating the GNG prior distributions
+
+With the means and standard deviations coded for, we can now use the `prior()` function to generate our priors. Additionally, we also specify that this is for a non-hierarchical model.
+
+```{r Creating the GNG prior distributions}
+# Creating the prior distribution for each GNG WDM parameter
+priorWDMGNG <- prior(designWDMGNG,
+                     pmean=pmean, 
+                     psd=psd,
+                     type="single") # Non-hierarchical
+
+class(priorWDMGNG)
+
+# Print out the prior information (inspect for anything that remains at the default)
+priorWDMGNG
+```
+
+### 2.4 Plotting the GNG prior distributions
+
+Here we can visualize the prior distributions just to confirm that everything looks okay.
+
+```{r plotting the GNG prior distributions}
+# plotting on the natural scale
+plot(priorWDMGNG, designWDMGNG, layout=c(2,4))
+```
+
+## 3. Fitting a GNG WDM Model
+
+### 3.1 Making an emc object and fitting the GNG WDM
+
+Before we can fit the model, we need to create an emc object using the `make_emc()` function. For this, we input the data, the model design, the prior distribution and mention that we are fitting a non-hierarchical model. Afterwards, we can use the `fit()` function to run the model.
+
+```{r Fitting the model}
+# Create an emc object for the gng data
+sWDM_GNG2 <-  make_emc(data = gng, 
+                       design = designWDMGNG, 
+                       type= "single",
+                       prior=priorWDMGNG)
+
+# Fitting the model
+# sWDM_GNG2 <- fit(sWDM_GNG2)
+
+# Saving the model objects
+# save(sWDM_GNG2, file = here("ddm", "individual", "models", "sWDM_GNG2.Rdata"))
+
+# Loading the model objects
+load(here("ddm", "individual", "models", "sWDM_GNG2.Rdata"))
+```
+
+### 3.2 Checking model convergence
+
+From the output below, the model seems to converge just fine. All Rhat values are less than 1.1 and the ESS values are all greater than 1,000.
+
+```{r Checking model convergence}
+# Check model convergence
+check(sWDM_GNG2)
+```
+
+### 3.3 Extracting model parameters
+
+Below we can use the `mapped_pars()` function to view the parameters that were initially chosen when simulating the data. The `credict()` function shows us that the GNG WDM was able to nicely estimate these same parameters!
+
+```{r extracting the model parameters}
+# The original specified parameters (ground truth)
+mapped_pars(designWDMGNG, parsWDMGNG)
+
+# The estimated parameters from the GNG WDM
+credint(sWDM_GNG2, selection = "alpha", map = TRUE)
+```
+
+## 4. Does the GnG WDM capture the data well?
+
+### 4.1 Producing the predicted values
+
+To assess whether our model can explain our data well, we can use the `predict()` function to produce 50 predicted datasets. Each one is the same dimension as our original GNG dataset and contains the same number of trials for each stimuli. Essentially. we can use these datasets to generate an 'average' predicted dataset, made up by values in the 50th percentile and also create a 95% credible interval using values at the 2.5 and 97.5 percentiles.
+
+```{r Getting the predicted values}
+# Use the predict function to obtain the fitted values
+# ppWDM_GNG2 <- predict(sWDM_GNG2)
+
+# Saving the predicted object
+# saveRDS(ppWDM_GNG2, file = here("ddm", "individual", "predicted_values", "ppWDM_GNG2.rds"))
+
+# Loading the predicted values data frame
+ppWDM_GNG2 <- readRDS(here("ddm", "individual", "predicted_values", "ppWDM_GNG2.rds"))
+
+# Why so many rows?
+xtabs(~S+ postn, ppWDM_GNG2)
+```
+
+### 4.2 Plotting the predicted values over the GNG dataset
+
+Below we use the `plot_density()` and `plot_cdf()` functions to produce defective distributions for the go and ng stimuli. Both plots are essentially saying the same thing. Overall, visually it appears that the original data fits between the 95% credible interval created by the predicted datasets. Moreover, we see these confidence intervals are much large for the ng trials than the go trials. This is just a consequence of how many trials are available in the dataset.
+
+```{r plotting the predicted values}
+# plotting predicted values as a density plot
+plot_density(gng, ppWDM_GNG2, factors = c("S"))
+
+# Plotting the predicted values as a cumulative defective function
+plot_cdf(gng, ppWDM_GNG2, factors = c("S"))
+```
+
+### 4.3 Quickly checking accuracy
+
+We can use the `aggregate()` function below to quickly gauge how well the predicted datasets are capturing accuracy within their 95% credible interval- overall it looks good!
+
+```{r Getting descriptives of the original data}
+# Getting descriptives for the original data
+agg1 <- aggregate(R=="RESP"~subjects*S, gng, mean)
+colnames(agg1)[3] <- c("RESP")
+agg2 <- aggregate(RESP~S, agg1, mean)
+
+# Getting descriptives for the predicted datasets
+agg1_pp <- aggregate(R=="RESP"~ S*subjects*postn, ppWDM_GNG2, mean)
+colnames(agg1_pp)[4] <- c("RESP")
+agg2_pp <- aggregate(RESP~S*postn, agg1_pp, mean)
+agg3_pp <- aggregate(RESP~S, agg2_pp, median)
+low_pp <- aggregate(RESP~S, agg2_pp, function(x) quantile(x, 0.025))
+upp_pp <- aggregate(RESP~S, agg2_pp, function(x) quantile(x, 0.975))
+
+agg4_pp <- data.frame(
+  S      = agg3_pp$S,
+  "2.5%"  = low_pp$RESP,
+  "50%"   = agg3_pp$RESP,
+  "97.5%" = upp_pp$RESP,
+  check.names = FALSE  
+)
+
+# Raw data vs Predicted datasets
+agg2; agg4_pp
+```
+
+## 5. Parameter Recovery
+
+For brevity below we do a parameter recovery test and it looks splendid.
+
+```{r Parameter Recovery}
+# Simulate data from our model parameters
+sim <- make_data(parameters = sWDM_GNG2,
+                 design = designWDMGNG,
+                 data=gng)
+
+# Make an emc object
+sim_sWDM_GNG2 <- make_emc(data = sim,
+                          design = designWDMGNG,
+                          type="single",
+                          prior = priorWDMGNG)
+
+# Fit the model to the simulated data
+# sim_sWDM_GNG2 <- fit(sim_sWDM_GNG2)
+
+# Saving the model object
+# save(sim_sWDM_GNG2, file = here("ddm", "individual", "models", "sim_sWDM_GNG2.Rdata"))
+
+# Loading the model object
+load(here("ddm", "individual", "models", "sim_sWDM_GNG2.Rdata"))
+
+# Save the original parameters from the model (in transformed scale)
+ground_truth_params <- credint(sWDM_GNG2)[[1]][,"50%"]
+
+# Compare parameters from the original to the simulated data
+recovery(emc = sim_sWDM_GNG2, 
+         true_pars = ground_truth_params)
+```

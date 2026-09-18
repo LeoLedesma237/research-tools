@@ -1,0 +1,456 @@
+---
+title: "Introduction to Wiener Diffusion Models"
+editor: visual
+---
+
+To view a vignet from the EMC2 developers, please visit [Drift Diffusion Model (DDM)](https://ampl-psych.github.io/EMC2/articles/DDM.html).
+
+**Note**: The code below is a mixture from the code available in the [MBNCS26 GitHub](https://github.com/niekstevenson/MBNCS26/tree/main) and some of my own custom functions available here:
+
+```{r load in packages, warning = F, message= F}
+# Load in the packages
+library(EMC2)
+library(tidyverse)
+library(ggplot2)
+library(here)
+```
+
+```{r load in custom functions}
+# load in all custom ddm functions
+source(here("ddm", "load.R"))
+```
+
+## 1. Simulating Two-Choice Data
+
+### 1.1 Introduction to the design() function
+
+We start by specifying what data we want to simulate using the `design()` function. Essentially, here we specify what the names of our factors are going to be, what covariates we may have, the levels of the responses, the model formula (indicating what DDM parameters we want to estimate), and the model itself.
+
+We will start by generating this information for a **Wiener diffusion model**.
+
+In this model, we are specifying the:
+
+-   boundary separation (a)
+-   the drift rate by stimulus (v)
+-   the non-decision time (t0) and
+-   the relative starting point (Z).
+
+We are **not estimating** the intra-trial variability (s), the drift rate variability (sv), the relative starting point variability (SZ), nor the non-decision time variability (st0).
+
+This is important because when we print 'designWDM', it doesn't necessarily tell you what parameters are being estimated vs which ones are being fixed. However, we can tell that using the `sampled_pars()` function in the upcoming sections.
+
+Also, for this type of model, the intra-trial (or within-trial) variability (s) is fixed to the value 1 rather than 0.1 like in Ratcliff's version.
+
+```{r using the design function}
+# Generating the data and model specification
+designWDM <- design(model = DDM,
+                    factors=list(subjects=1,S=1:2), # S is the stimulus 1, or 2
+                    Rlevels = 1:2,                  # Corresponding responses
+                    # Single value of each WDM parameter except rates
+                    # where there is one value for each stimulus
+                    formula = list(a ~ 1, 
+                                   v ~ S, 
+                                   t0 ~ 1, 
+                                   Z ~ 1))
+```
+
+### 1.2 Using the mapped_pars() function
+
+Below we can see the different condition-specific drift rates represented by the model using the `mapped_pars()` function. However, the model rewrites these drift rates in terms of the components that it will actually estimate. For example, for S1, it directly estimates the drift rate for this condition (v). For S2, rather than directly estimating its drift rate, it estimates the difference between the S2 and S1 drift rates (v_S2). The full drift rate for S2 is then represented as v + v_S2.
+
+The model does this because we specified for it above when within formula we wrote `v ~ S`. By default it uses dummy coding and the v for S1 was chosen as the reference.
+
+```{r see what we want to estimate by factors}
+# Print out what parameters we want to estimate by factors
+mapped_pars(designWDM)
+```
+
+### 1.3 Specifyin DDM parameters using sampled_pars()
+
+Here we are using `sampled_pars()` to extract an empty vector with the names of the parameters that will be estimated in the ddm. Within this empty vector, we add values that will inform the model on how to simulate the data, such as the drift rate, boundary separation, etc. Interestingly, several of these parameters will need to be transformed into a different scale to simulate the data as correctly. This includes boundary separation (a in log scale), non-decision time (t0 in log scale), and the relative starting point (Z in probit scale). This is done to make the data simulate and model estimation process more efficient. The drift rates, however, remain in the same scale.
+
+Thus when we print out the chosen parameters, we see that the boundary separation (a) is the value 0, but this value is in the logit scale, so in the normal scale it is actually 1, and that is what we will see later on after we fit a ddm to the simulated data.
+
+Another thing to note, notice that the drift rates we chose are -1 (v) and 2 (v_S2). We chose these values because we want the v drift rate to be -1 and the v_S2 drift rate to be 1. As shown in the previous section, the drift rates are being estimated by the stimulus factor using dummy coding, thus if we wrote in -1 and 1, as we inteded it, the drift rate of S2 would be specified as 0 (-1 + 1 = 0). To show this, we can use `mapped_pars()` again in combination with the `design()` object to show what we plan to simulate in the normal scale!
+
+```{r specifying DDM parameters}
+# Choose parameters for simulation, first getting a vector with the right name
+parsWDM <- sampled_pars(designWDM)
+
+# Then choosing some values. Note that we include transforms here to illustrate
+# the scale on which sampling occurs
+parsWDM[] <- c(log(1), -1, 2, log(.3), qnorm(.5))
+
+# Here are the values
+parsWDM
+
+# Confirm our parameters were specified correctly
+mapped_pars(designWDM, parsWDM)
+```
+
+### 1.4 Simulate the data using make_data()
+
+Now that we confirmed that we specified our parmeters correctly, we can use the `make_data()` function to simulate our two-choice dataset.
+
+```{r simulate the ddm data}
+# Simulate the data
+dat <- make_data(parameters = parsWDM, 
+                 design = designWDM,
+                 n_trials = 700) # Per stimulus 
+```
+
+## 2. Visualizing the Data
+
+### 2.1 Create a data_design() object
+
+Inspired by the `make_design()` function from the EMC2 package, here we will be using the custom `data_design()` function to create an object that maps out the stimulus, response, and reaction time variables in the dataset, along with the rules that represent a correct response within stimulus.
+
+```{r Visualizing the data}
+# Create the data_design
+dat_design <- data_design(
+  stimulus = S,
+  response = R,
+  rt = rt,
+  correct = (S == 1 & R == 1) | (S == 2 & R == 2),
+  id = subjects
+)
+```
+
+### 2.2 Get the data descriptives using get_descriptives()
+
+The `get_descriptives()` function is also custom made which returns the number of trials by stimulus, the proportion of them being correct along with reaction time quantile information.
+
+```{r get the descriptives of the data}
+# Get the descriptives from the data
+get_descriptives(dat, dat_design)
+```
+
+### 2.3 Visualize the reaction times using defective density plots
+
+We created the `plot_defectiveDensity()` function to produce a plot of the reaction time data. This function is analagous to the `plot_density()` function from EMC2.
+
+```{r generate the defective density plots}
+# Create a defective density plot
+plot_defectiveDensity(dat, dat_design)
+
+# EMC2 version
+plot_density(dat, factor = "S")
+```
+
+## 3. Specifying the Priors
+
+### 3.1 Specifying the prior means
+
+To specify the priors, we can use information from several studies that have identified what value ranges to expect for specific parameters. For example, we can use the work from Matzke and Wagenmakers (2009), to generate a table of these parameter value ranges for intra-trial noise being fixed to s = 0.1 or s = 1.0.
+
+| DDM Parameter | Psychological Meaning | Ratcliff (s = 0.1), min/max/mean | Other (s = 1.0), min/max/mean |
+|------------------|-------------------|------------------|------------------|
+| Drift Rate (v) | Speed of information processing / task difficulty | 0.000/0.586/0.223 | 0.00/5.86/2.23 |
+| Boundary Separation (a) | Response caution / distance to decision threshold | 0.056/0.393/0.125 | 0.56/3.93/1.25 |
+| Absolute Starting Point (z) | A priori bias toward one response | 0.028/0.182/0.063 | 0.28/1.82/0.63 |
+| Relative Starting Point (z/a) | Relative starting point (0.5 = unbiased) | 0.272/0.782/0.500 | 0.272/0.782/0.500 |
+| Nondecision Time (Ter) | Sensory encoding + motor execution time (in seconds) | 0.206/0.942/0.435s | 0.206/0.942/0.435s |
+| Drift Rate Variability (Sv) | Across-trial variability in drift rate | 0.000/0.329/0.133 | 0.00/3.29/1.33 |
+| Starting Point Variability (Sz) | Across-trial variability in starting point | 0.000/0.169/0.037 | 0.00/1.69/0.37 |
+| Nondecision Time Variability (St) | Across-trial variability in nondecision time (in seconds) | 0.000/0.630/0.183s | 0.000/0.630/0.183s |
+
+Notice how the intra-trial noise essentially works as a scaling variable, and that this has an effect on all non-time related parameters. It does not affect the time parameters since it already has seconds as units of measurement.
+
+From the information in the table above, we can use the reported means to **inform the means for our priors**!
+
+```{r Specifying the prior means}
+# Specify the prior means in the transformed scale
+pmean <- c(
+  a = log(1.25), 
+  v = -2.2, 
+  v_S2 = 2.2,  
+  t0 = log(.4),
+  Z = qnorm(.5) 
+)
+```
+
+### 3.2 Specifying the prior standard deviations
+
+Additionally, we can use the table to inform the spread for our parameters. Now, the spread will be in the **transformed scale**. We can essentially use the following formula to calculate the standard deviation for **most** of the parameters:
+
+$$SD = \frac{\text{MAX} - \text{MIN}}{4}$$ For example, starting with the boundary separation (a), we know that across studies it ranges between 0.56 and 3.93 in the **untransformed scale**. Therefore, we need to pick a value in the **log scale** that keeps the values restricted within this range. To do this, we can just log transform these values to produce log(0.56) = -0.58 and log(3.93) = 1.36. We can take the difference to get the range = 1.36 - (-0.58) = 1.94. We can then **divide this number by 4** to get a rough estimate of the standard deviation = 1.94/4 = 0.49.
+
+Similarly, for non-decision time, we can use the same formula ((log(0.942) - log(0.206))/4 = 0.38), and the same for the relative starting point ((qnorm(0.782) - qnorm(0.272))/4 = 0.35).
+
+Lastly, while following the same formula for the drift parameters results in 5.86/4 = 1.47, this value might be a bit too restrictive. It will likely work well in most cases where the data look good, however, in situations where the performers are quite poor, using a much larger value like 2.5 would work much better.
+
+```{r Specifying the prior standard deviations}
+# Standard deviations
+psd <- c(
+  a = 0.5,     # Spread for log(a)
+  v = 2.5,     # Spread for drift rate v (S1)
+  v_S2 = 2.5,  # Spread for drift rate v (S2)
+  t0 = 0.38,   # Spread for log(t0)
+  Z = 0.35     # Spread for probit(Z)
+)
+```
+
+### 3.3 Combining the prior means and standard deviations
+
+Now we can combine the prior means with the prior standard deviations, along with the model design that indicates how we will specify the model (review section 1.1) to create our priors which are saved within an 'emc.prior' object.
+
+Below we can view these means and the variances (standard deviations\^2). Additionally we can pair this with the summary() function to confirm that the covariances among the parameters were specified to zero.
+
+```{r combining the prior means and standard deviations}
+# We can use the "prior" function to combine this information, indicting that
+# the prior is at the single subject level.
+priorWDM <- prior(designWDM,
+                  pmean=pmean, 
+                  psd=psd,
+                  type="single") # Non-hierarchical
+
+class(priorWDM)
+priorWDM
+
+# To see the 0 covariances as well:
+summary(priorWDM)
+```
+
+### 3.4 Plotting the prior distributions
+
+Below we can plot the prior distributions in the transformed scale, this is essentially showing the numbers that we deliberately specified in the previos section. We also have the option to extract the values, in case we wanted to generate these plots using `ggplot()` or wanted to do something else with the values. More importantly, we can also plot the prior distribution in the **natural scale**, which is much more informative to see if we specified everything correctly.
+
+```{r viewing the prior means and standard deviations}
+# Plot the priors
+plot(priorWDM, designWDM, map=FALSE, layout=c(2,4))
+
+# Extract the values instead
+priorSamples <- plot(priorWDM,designWDM,map=FALSE,layout=c(2,4), do_plot = FALSE)
+head(priorSamples[[1]])
+
+# plotting on the natural scale
+plot(priorWDM, designWDM, layout=c(2,4))
+```
+
+## 4. Fitting the Drift Diffusion Model
+
+### 4.1 Making an emc object
+
+Before we can fit the DDM, we need to create an emc object, where we specify what data we are trying to fit the model to, what the design is (basically what parameters we want to estimate and how vs fixed), if the model is hierarchical or not (single means no while standard means yes), and what the prior distributions are.
+
+When we print out the object, it basically shows us 0's for the preburn, burn, adapt, and sample stage. This table essentially tracks the EMC2's Markov Chain Monte Carlo (MCMC) estimation for the four sampling stages.
+
+-   preburn: A broad initial search of the parameter space
+-   burn: MCMC chains run until preliminary convergence criteria are met
+-   adapt: Samples are gathered to construct proposal distributions for efficient sampling
+-   sample: The final posterior samples
+
+For more information on what these four sampling stages mean, please visit: [Day1-BasicEAMs/2-Dual.R](https://github.com/niekstevenson/MBNCS26/blob/main/Day1-BasicEAMs/2-Dual.R)
+
+Additionally, we get a message of a likelihood speedup factor, which represents EMC2's RT quantization. Essentially, instead of calculating likelihoods for all trials in the data, it instead creates response time bins of unique trial types and runs the likelihood for those. This speeds up the calculation time while not sacrificing accuracy.
+
+```{r Creating an emc object}
+# Create an emc object
+sWDM <-  make_emc(data = dat, 
+                  design = designWDM, 
+                  type="single",
+                  prior=priorWDM)
+
+# Print the object
+sWDM
+```
+
+### 4.2 Fitting the DDM model
+
+In our example the model took only a few seconds to run, however this will not always be the case so it is recommended to save your model object and then load it in to save time in the future.
+
+The code here is very straightforward, we use use the `fit()` function and we will see outputs indicating how each of the four sampling stages went.
+
+By default, the `fit()` function will use three independent chains for the sampling process. The model is fit using parallel processing, where one core is devoted to one of the chains. You cannot increase the parallel processing speed by adding more cores than chains being used.
+
+```{r fitting the DDM model}
+# Fitting the model
+#sWDM <- fit(sWDM)
+
+# Saving the model object
+#save(sWDM, file = here("ddm", "individual", "models", "sWDM.Rdata"))
+
+# Loading the model object
+load(here("ddm", "individual", "models", "sWDM.Rdata"))
+
+# Check the class
+class(sWDM)
+```
+
+### 4.3 Checking model convergence using check()
+
+It doesn't really make sense to interpret the parameter estimates unless we can verify that the model converged correctly. We can confirm that the model converged by using the `check()` function, where we are informed how many chains and samples are within each chain under iterations, along with the R hat and ESS values.
+
+The R hat values measure chain convergence, by comparing the variance within individual MCMC chains to the variance between different chains. Basically if this value is less than 1.1, then that means there are very little differences between the chains, which is good since they are all in the same sampling space essentially.
+
+The effective sample size (ESS) tells us the number of independent samples drawn from the posterior distribution after accounting for autocorrelation between successive MCMC iterations. Thus, higher ESS means lower autocorrelation, which is a good thing. I think having more than 400 (regardless of number of chains or samples within chains) is considered the bare minimum and having around 1000 means you are pretty good to go.
+
+In our specific example, since we had 3 MCMC chains where each have 1000 samples, for a total of 3000 samples, the fact that parameters v and Z have 3000 for ESS show essentially all samples achieved full independence with no autocorrelation.
+
+Lastly, the `check()` function also produces these fuzzy caterpillar plots, where if the plot looks like a fuzzy caterpillar (as shown below) that convergence was successful. It produces this plot for the parameter with the highest R hat in the model.
+
+```{r checking model convergence}
+check(sWDM)
+```
+
+### 4.4 Extracting Model Parameter Estimates
+
+Since everything looked okay, we can now go ahead and extract the model parameter estimates. There are a couple ways of doing this, the first is to use the `summary()` function which produces the estimates in the transformed scale along with their corresponding R hat and ESS values. For example, the boundary separation (a) is in the log scale while the relative starting point (Z) is in the probit scale. A better approach would instead be to use the `credint()` function with the 'map=TRUE' argument to return them the estimates in the **natural scale**, making them much easier to interpret.
+
+Essentially, how Bayesian statistics work is that it generates multiple combinations of estimated parameters (e.g., a = 1.01, v_S1 = -1.2, v_S2 = 1.01, t0 = .288, Z = .512) and examines how well that explains the data by examining the produced likelihood value from that combination It then does this over and over again and when the likelihood value remains similar across different parameter combination values, then the model has converged. However, since we have many combinations, we can essentially create distributions within each parameter of these values, which are known as the **posterior distributions**. Since we have 3 chains, each with 1,000 samples, then every parameter in our model will have a distribution of 3,000 values. From this distribution, the **median** is going to represent the reported parameter estimate, basically the value at 50% of the distribution, while the values at 2.5% and 97.5% represent our certainty or our **95% credible interval**. We can essentially extract for each parameter those values down below with both the `summary()` and `credint()` functions.
+
+```{r extracting the model parameter estimates}
+# Getting model parameter estimates using summary()
+summary(sWDM)
+
+# Getting model parameter estimates using credint()
+credint(sWDM, selection="alpha", map=TRUE)
+```
+
+## 5. Does the model capture the data well?
+
+### 5.1 Producing the predicted (fitted) values
+
+We can now use the `predict()` function on the emc object that contains the model information. This code can also take a while to run sometimes, but not as long as fitting the actual model. Regardless, it is also recommended to save the predicted values and load them to save on time.
+
+Interestingly, unlike the `fitted()` function which produces a vector of fitted values for a regression, the `predict()` function in our case produces a **data frame**, where the trial information essentially represents predicted information. For example, down below the variables `subjects` and `S` should match the same dimensions as our original data- think of them as fixed predictors. However, the `R` and `rt` variables are different, because those two variables are the fitted values.
+
+To illustrate this, the second table shows how the `trials`, `S`, and `subjects` variable from the predicted dataset matches that of the original but the `R` and `rt` variables differ. This makes sense since having different `R` and `rt` values represents how the model parameters are explaining data accuracy and reaction time.
+
+Lastly, by default the `predict()` function produces **fitted trials**, the same number as the original dataset for the same number of stimulus types (in our case 700 for S1 and 700 for S2), but it does so **50 times**. This is formally called **posterior predictives** or posterior predictive datasets. This just means that the fitted trials are generated by drawing parameter values from a posterior distribution.
+
+In other words, the `predict()` function is picking parameter estimates at random from their **posterior distribution** and using that information to generate the fitted trials. Afterwards, it picks another random set of parameter value combinations from their posterior distributions, produces fitted values and repeats the process (at default it does this 50 times). Also, notice that each reaction time value is slightly different from each other even under the same conditions (same S and R), this is due to the added randomness to that trail from the fixed 's' parameter, which represents the within-trial (intra-trial) variability. Conceptually, you can think of this as the squiggly line that can push a decision earlier or later than the drift rate (average time it takes to make a decision for a specific stimulus).
+
+Each iteration is differentiated by the 'postn' variable. From this predicted information, we can calculate means for predicted accuracy and reaction time to see if it is capturing the data well, while also allowing us to investigate how close the predicted values across iterations are to each other. More specifically, we can use the 50 replicates to construct 95% credible intervals.
+
+```{r Producing the fitted values}
+# Use the predict function to obtain the fitted values
+#ppWDM <- predict(sWDM)
+
+# Saving the predicted object
+#saveRDS(ppWDM, file = here("ddm", "individual", "predicted_values", "ppWDM.rds"))
+
+# Loading the predicted datasets
+ppWDM <- readRDS(here("ddm", "individual", "predicted_values", "ppWDM.rds"))
+
+# View the predicted data
+head(ppWDM, 10)
+
+# Comparing predicted and original data
+left_join(
+  dat,
+  rename(filter(ppWDM, postn == 1), R_pred = R, rt_pred = rt),
+  by = c("subjects", "S", "trials")
+) %>%
+  head(10)
+
+# Why so many rows?
+xtabs(~S+ postn, ppWDM)
+```
+
+### 5.2 Plotting the Predicted Values
+
+Now this is where things get interesting. In continuation of our previous section where we produced fitted trials for 50 iterations, we can now use this information to generate plots for our original dataset and our predicted datasets to see how well the model captures the raw data. We can do this in two ways, by creating defective density plots or defective cumulative distribution function plots- both tell us essentially the same information.
+
+For the former, we can use the `plot_density()` function, where we specify the original dataset, the predicted datasets, and the factors we are interested in faceting the graphs (in our case just stimulus). Essentially, the plot produces **defective density plots** for both stimuli, just like we produced in section 2.3, for the original or raw data as black lines. These plots represent the distribution of reaction time where all possible responses (for a DDM there are two, in our case R1 and R2) where separately they do not integrate to one but together they do within a specific stimulus. In other words, it has accuracy baked into the distribution!
+
+It then plots the 50% median values from the predicted datasets as defective density plots (green lines), allowing us to compare how similar to the distribution of both black and green lines are to each other. Moreover, since we have 50 predicted datasets, we can create distributions of reaction times for a stimulus and response combination at a specific quantile for reaction time (e.g., S1 and R1 at 1.1 RT), obtain the values at 2.5 and 97.5% for the specific RT location, and use that to essentially generate a 95% credible interval. We then do this across all stimulus and response combinations (in our case there are 4) for each value of RT to produce a full 95% credible interval.
+
+The logic then is the following, if our Bayesian DDM model is doing a good job at explaining our data, then our data defective distributions should be within the 95% credible interval of the predicted datasets. Looking at the plot below, it looks like it does!
+
+Similarly, we can also plot this information as defective cumulative distribution functions using the `plot_cdf()` function, again we see that the original data falls within the 95% credible interval created by the predicted datasets.
+
+```{r plotting the predicted values next to the original data}
+# plotting predicted values as a density plot
+plot_density(dat, ppWDM, factors = c("S"))
+
+# Plotting the predicted values as a cumulative defective function
+plot_cdf(dat, ppWDM, factors = c("S"))
+```
+
+### 5.3 Quickly Checking Accuracy
+
+The code below is more of a proof of concept, showing essentially that we can use the `aggregate()` function to quickly get a sense of accuracy in the data. However, what is important below is the order in which we aggregate information, especially for the predicted datasets. Notice that the last thing we average out is `postn`, this was done by design as removing it early in the calculate will produce incorrect means.
+
+```{r Getting descriptives like a pro}
+# Getting descriptives for the original data
+agg1 <- aggregate(R=="2"~subjects*S, dat, mean)
+colnames(agg1)[3] <- c("pR2")
+agg2 <- aggregate(pR2~S, agg1, mean)
+
+# Getting descriptives for the predicted datasets
+agg1_pp <- aggregate(R=="2"~ S*subjects*postn, ppWDM, mean)
+colnames(agg1_pp)[4] <- c("pR2")
+agg2_pp <- aggregate(pR2~S*postn, agg1_pp, mean)
+agg3_pp <- aggregate(pR2~S, agg2_pp, median)
+low_pp <- aggregate(pR2~S, agg2_pp, function(x) quantile(x, 0.025))
+upp_pp <- aggregate(pR2~S, agg2_pp, function(x) quantile(x, 0.975))
+
+agg4_pp <- data.frame(
+  S      = agg3_pp$S,
+  "2.5%"  = low_pp$pR2,
+  "50%"   = agg3_pp$pR2,
+  "97.5%" = upp_pp$pR2,
+  check.names = FALSE  
+)
+
+# Raw data vs Predicted datasets
+agg2; agg4_pp
+```
+
+## 6. Parameter Recovery
+
+### 6.1 Simulating data from our model parameters
+
+In the previous section, the goal was to use the `predict()` function to simulate trials and then compare how the simulated data compares to the original data. For this section, we are doing something different. This time, we are treating the median (50%) parameter estimates as the **ground truth** and are a) simulating data using these parameters and then b) fitting the same DDM model to this simulated dataset to see if we can get similar parameter estimates to what we initially got from the initial posterior distribution. This process is known as **parameter recovery** and must be done to confirm that our model is reliable to interpret.
+
+Why do this? Well because with evidence accumulation models (EAMs), it is possible to recreate the data well using completely different values for the EAMs parameters. In such case, that invalidates the original interpretation of the data- thus this needs to be done in order to see if your estimates remain consistent or not. In other words, what we did before with the `predict()` function can produce datasets that look just like the original, but both originate from different estimated values, which is bad for us when it comes to interpreting the model.
+
+Anyway to do this, we first start by using the `made_data()` function, which we have already have done in section 1.4. Again, this takes in the inputs of the parameters, in our case we can just insert the emc object with our model output, the design object that has the model specification, and our original dataset, so that the simulated data keeps the same structure (e.g., number of trials).
+
+```{r Simulate data from our model parameters}
+# Simulate data from our model parameters
+sim <- make_data(parameters = sWDM,
+                 design = designWDM,
+                 data=dat)
+```
+
+### 6.2 Fitting the DDM to the simulated data
+
+In this section, we fit the DDM model to our simulated dataset. Just like before, we start by creating an emc object using the `make_emc()` function and then fitting the model using `fit()`.
+
+Since fitting a DDM can take a long time, it is also adviced here to save the model output and then load that in.
+
+```{r fitting a ddm to the simulated data}
+# Make an emc object
+sim_sWDM <- make_emc(data = sim,
+                     design = designWDM,
+                     type="single",
+                     prior = priorWDM)
+
+# Fit the model to the simulated data
+# sim_sWDM <- fit(sim_sWDM)
+
+# Saving the model object
+# save(sim_sWDM, file = here("ddm", "individual", "models", "sim_sWDM.Rdata"))
+
+# Loading the model object
+load(here("ddm", "individual", "models", "sim_sWDM.Rdata"))
+```
+
+### 6.3 Checking the parameter recovery
+
+Lastly, we use the `credint()` function to extract the estimated parameters (50th percentile of the posterior distribution) in the transformed scale and save it as a vector.
+
+Next, we use the `recovery()` function to perform the parameter recovery study. It creates a diagnostic scatterplot for each DDM parameter that was estimated and also provides a correlation coefficient and an RMSE value. If the correlation is larger than .75 then that is considered good recovery and if its larger than 90 then that is considered excellent recovery (Myers et al. 2022; White et al., 2018b).
+
+In our example, we got r = 0.998, which is phenomenal. The RMSE is not that important.
+
+```{r Checking the parameter recovery}
+# Save the original parameters from the model (in transformed scale)
+ground_truth_params <- credint(sWDM)[[1]][,"50%"]
+
+# Compare parameters from the original to the simulated data
+recovery(emc = sim_sWDM, 
+         true_pars = ground_truth_params)
+```
