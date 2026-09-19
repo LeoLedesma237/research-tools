@@ -11,6 +11,7 @@ get_descriptives <- function(data, design) {
   accuracy <- data %>%
     group_by(stimulus = !!design$stimulus) %>%
     summarise(
+      n_subjects = n_distinct(!!design$id),
       n_trials = n(),
       n_correct = sum(correct, na.rm = TRUE),
       prop_correct = mean(correct, na.rm = TRUE),

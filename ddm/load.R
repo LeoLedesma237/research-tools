@@ -1,12 +1,14 @@
-# Source in all ddm scripts
+# Get the directory containing this load.R file
 
-# Load in packages
-library(here)
+# Set default path if ddm_dir has not already been defined
+if (!exists("ddm_dir")) {
+  ddm_dir <- here("ddm")
+}
 
 # Source in the code
-source(here("ddm", "R", "data_design.R"))
-source(here("ddm", "R", "get_descriptives.R"))
-source(here("ddm", "R", "plot_defectiveDensity.R"))
-source(here("ddm", "R", "plot_defectiveDensityComparison.R"))
-source(here("ddm", "R", "plot_defectiveDensityGNG.R"))
-
+source(file.path(ddm_dir, "R", "data_design.R"))
+source(file.path(ddm_dir, "R", "get_descriptives.R"))
+source(file.path(ddm_dir, "R", "plot_defectiveDensity.R"))
+source(file.path(ddm_dir, "R", "plot_defectiveDensityComparison.R"))
+source(file.path(ddm_dir, "R", "plot_defectiveDensityGNG.R"))
+source(file.path(ddm_dir, "R", "plot_defectiveDensityComparisonGNG.R"))
