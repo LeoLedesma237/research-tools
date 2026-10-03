@@ -1,17 +1,35 @@
 # Create a custom function to plot defective densities for Go/No-Go data
-plot_defectiveDensityGNG <- function(data, design) {
+plot_defectiveDensityGNG <- function(data, design, facet = NULL) {
+  
+  # Capture optional faceting variable(s)
+  facet_quo <- rlang::enquo(facet)
+  use_facet <- !rlang::quo_is_null(facet_quo)
+  
+  # Extract facet variable names
+  if (use_facet) {
+    facet_names <- tidyselect::eval_select(
+      facet_quo,
+      data = data
+    ) %>%
+      names()
+  } else {
+    facet_names <- character(0)
+  }
   
   # Standardize variables needed for plotting
   plot_dat <- data %>%
     transmute(
       stimulus = !!design$stimulus,
       response = !!design$response,
-      rt = !!design$rt
+      rt = !!design$rt,
+      across(all_of(facet_names))
     )
   
-  # Calculate probability of an observed response for each stimulus
+  # Calculate probability of an observed response
   response_props <- plot_dat %>%
-    group_by(stimulus) %>%
+    group_by(
+      across(all_of(c(facet_names, "stimulus")))
+    ) %>%
     summarise(
       prop = mean(!is.na(rt)),
       .groups = "drop"
@@ -20,7 +38,9 @@ plot_defectiveDensityGNG <- function(data, design) {
   # Calculate RT density for trials with an observed response
   density_dat <- plot_dat %>%
     filter(!is.na(rt)) %>%
-    group_by(stimulus) %>%
+    group_by(
+      across(all_of(c(facet_names, "stimulus")))
+    ) %>%
     group_modify(~ {
       
       d <- density(.x$rt)
@@ -34,14 +54,14 @@ plot_defectiveDensityGNG <- function(data, design) {
     ungroup() %>%
     left_join(
       response_props,
-      by = "stimulus"
+      by = c(facet_names, "stimulus")
     ) %>%
     mutate(
       y = y * prop
     )
   
-  # Plot defective densities
-  density_dat %>%
+  # Create defective density plot
+  p <- density_dat %>%
     ggplot(
       aes(
         x = x,
@@ -82,4 +102,14 @@ plot_defectiveDensityGNG <- function(data, design) {
       legend.position = "top",
       panel.grid.minor = element_blank()
     )
+  
+  # Add facets if requested
+  if (use_facet) {
+    p <- p +
+      facet_wrap(
+        vars(!!!rlang::syms(facet_names))
+      )
+  }
+  
+  return(p)
 }
