@@ -1,37 +1,99 @@
 # Create a custom function that returns the descriptives of the data
-get_descriptives <- function(data, design) {
+get_descriptives <- function(data, design, formula = ~ stimulus) {
   
-  # Add a correct variable to the data based on the rule given
+  # Create standardized variables
   data <- data %>%
     mutate(
+      id = !!design$id,
+      stimulus = !!design$stimulus,
+      rt = !!design$rt,
       correct = rlang::eval_tidy(design$correct, data = data)
     )
   
-  # Get accuracy descriptives for each stimulus
-  accuracy <- data %>%
-    group_by(stimulus = !!design$stimulus) %>%
-    summarise(
-      n_subjects = n_distinct(!!design$id),
-      n_trials = n(),
-      n_correct = sum(correct, na.rm = TRUE),
-      prop_correct = mean(correct, na.rm = TRUE),
-      .groups = "drop"
-    )
   
-  # Get RT quantiles for each stimulus and response accuracy
-  reaction_time <- data %>%
-    group_by(
-      stimulus = !!design$stimulus,
-      correct
-    ) %>%
-    summarise(
-      q10 = quantile(!!design$rt, .10, na.rm = TRUE),
-      q30 = quantile(!!design$rt, .30, na.rm = TRUE),
-      q50 = quantile(!!design$rt, .50, na.rm = TRUE),
-      q70 = quantile(!!design$rt, .70, na.rm = TRUE),
-      q90 = quantile(!!design$rt, .90, na.rm = TRUE),
-      .groups = "drop"
-    )
+  # Get grouping variables from formula
+  grouping_vars <- all.vars(formula)
+  
+  
+  # Create formulas for accuracy
+  id_formula <- reformulate(grouping_vars, response = "id")
+  correct_formula <- reformulate(grouping_vars, response = "correct")
+  
+  
+  # Accuracy descriptives
+  
+  # Number of subjects
+  n_subjects <- aggregate(
+    id_formula,
+    data = data,
+    FUN = function(x) length(unique(x))
+  )
+  
+  # Number of trials
+  n_trials <- aggregate(
+    id_formula,
+    data = data,
+    FUN = length
+  )
+  
+  # Number correct
+  n_correct <- aggregate(
+    correct_formula,
+    data = data,
+    FUN = sum,
+    na.rm = TRUE
+  )
+  
+  # Proportion correct
+  prop_correct <- aggregate(
+    correct_formula,
+    data = data,
+    FUN = mean,
+    na.rm = TRUE
+  )
+  
+  
+  # Combine accuracy descriptives
+  accuracy <- n_subjects
+  
+  names(accuracy)[ncol(accuracy)] <- "n_subjects"
+  
+  accuracy$n_trials <- n_trials$id
+  accuracy$n_correct <- n_correct$correct
+  accuracy$prop_correct <- prop_correct$correct
+  
+  
+  # Add correct to grouping variables for RT
+  rt_grouping_vars <- c(grouping_vars, "correct")
+  
+  # Create RT formula
+  rt_formula <- reformulate(
+    rt_grouping_vars,
+    response = "rt"
+  )
+  
+  
+  # RT quantiles
+  reaction_time <- aggregate(
+    rt_formula,
+    data = data,
+    FUN = quantile,
+    probs = c(.10, .30, .50, .70, .90),
+    na.rm = TRUE
+  )
+  
+  
+  # Separate RT quantiles into columns
+  rt_quantiles <- reaction_time$rt
+  
+  reaction_time$rt <- NULL
+  
+  reaction_time$q10 <- rt_quantiles[, 1]
+  reaction_time$q30 <- rt_quantiles[, 2]
+  reaction_time$q50 <- rt_quantiles[, 3]
+  reaction_time$q70 <- rt_quantiles[, 4]
+  reaction_time$q90 <- rt_quantiles[, 5]
+  
   
   # Return descriptives
   list(
