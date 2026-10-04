@@ -1,5 +1,5 @@
 # Create a custom function to plot defective densities for Go/No-Go data
-plot_defectiveDensityGNG <- function(data, design, facet = NULL) {
+plot_defectiveDensityGNG <- function(data, design, facet = NULL, xmax = NULL) {
   
   # Capture optional faceting variable(s)
   facet_quo <- rlang::enquo(facet)
@@ -108,6 +108,14 @@ plot_defectiveDensityGNG <- function(data, design, facet = NULL) {
     p <- p +
       facet_wrap(
         vars(!!!rlang::syms(facet_names))
+      )
+  }
+  
+  # Zoom x-axis if requested
+  if (!is.null(xmax)) {
+    p <- p +
+      coord_cartesian(
+        xlim = c(0, xmax)
       )
   }
   

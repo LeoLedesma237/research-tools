@@ -78,7 +78,7 @@ get_descriptives <- function(data, design, formula = ~ stimulus) {
     rt_formula,
     data = data,
     FUN = quantile,
-    probs = c(.10, .30, .50, .70, .90),
+    probs = c(0, .05, .25, .50, .75, .95, 1),
     na.rm = TRUE
   )
   
@@ -88,11 +88,18 @@ get_descriptives <- function(data, design, formula = ~ stimulus) {
   
   reaction_time$rt <- NULL
   
-  reaction_time$q10 <- rt_quantiles[, 1]
-  reaction_time$q30 <- rt_quantiles[, 2]
-  reaction_time$q50 <- rt_quantiles[, 3]
-  reaction_time$q70 <- rt_quantiles[, 4]
-  reaction_time$q90 <- rt_quantiles[, 5]
+  reaction_time$min <- rt_quantiles[, 1]
+  reaction_time$q05 <- rt_quantiles[, 2]
+  reaction_time$q25 <- rt_quantiles[, 3]
+  reaction_time$q50 <- rt_quantiles[, 4]
+  reaction_time$m75 <- rt_quantiles[, 5]
+  reaction_time$q95 <- rt_quantiles[, 6]
+  reaction_time$max <- rt_quantiles[, 7]
+  
+  
+  # Round the data frame information
+  accuracy <- mutate(accuracy, across(where(is.numeric), ~ round(.x, 3)))
+  reaction_time <- mutate(reaction_time, across(where(is.numeric), ~ round(.x, 3)))
   
   
   # Return descriptives
