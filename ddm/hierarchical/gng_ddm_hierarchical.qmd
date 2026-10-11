@@ -1,0 +1,322 @@
+---
+title: "Fitting a Hierarchical DDM on GNG data"
+editor: visual
+---
+
+The goal of this document is to walkthrough the creation of hierarchicall GNG data followed by the model fitting process.
+
+```{r load in packages, warning=FALSE, message=FALSE}
+# load in packages
+library(EMC2)
+library(dplyr)
+library(here)
+library(ggplot2)
+```
+
+```{r Load in custom functions}
+# Load custom DDM functions
+source(here("ddm", "load.R"))
+```
+
+
+## 1. Generating the GNG data
+
+### 1.1 Specifying the model and data making information
+
+We start by specifying that we want to have a dataset comprised of 60 subjects. This will be a Go/No-Go (GNG) datasets where most trials will require a response (go) while the fewer remaining trials will not (nogo). To create the backbone of what we want, we start by using the `design()` function, which specifies both the design of the data and the model (DDM) that we will use. 
+
+We start by specifying our main factors of interest which are subjects, and S (stimuli). We state that we want data for 60 participants and that the data will be made up of "go" and "nogo" stimuli. Next, we indicate what the responses are going to be, which are "go" and "nogo". As is, these responses do not mean anything to the model. However, we can then supply more information into 'matchfun' and 'functions' arguments, which tell the model a) which boundary the "go" and "nogo" response will represent, with the "go" response representing the bottome or negative boundary (idk).
+
+From there, we specify what model we want to use which is the DDM, followed by the formula. The formula we chose is a regular Wiender diffusion model (WDM). Lastly, since we specify within trial-error into the formula (s), we also add this paramter into 'constants', such that the model knows to fix this value rather than estimate it. 
+
+```{r Specifying the data and model object}
+# Number of subjects
+sub_n <- 60
+
+# Create model design
+designWDM <- design(
+  factors = list(subjects = 1:sub_n, S = c("go", "nogo")),
+  Rlevels = c("go", "nogo"),
+  matchfun = function(d) as.numeric(d$S) == as.numeric(d$lR),
+  functions = list(match = function(d) ifelse(d$S == "go", -1, 1)),
+  model = DDM,
+  formula = list(
+    v ~ 0 + match:S,
+    Z ~ 1,
+    a ~ 1,
+    t0 ~ 1,
+    s ~ 1
+  ),
+  constants = c(s = log(1))
+)
+```
+
+### 1.2 Specifying the population level parameters
+
+Here we are creating two vectors that contain information about the **population level parameters**. These are going to be the value that will represent the average estimates across all subjects in the sample. In other words, we can think of the drift rates below as like the mean of all the drift rates from all subjects within the sample (with some caveats). Additionally, we are not solely specifying the values we want for the drift rates and other parameters, but also their distributions. Lastly, it is important to note when specifying the values below, to use the correct transformations, as the transformed value is what will be used during the model estimation process.
+
+```{r Generating population specific parameters}
+# Population means
+p_vector <- sampled_pars(designWDM)
+
+p_vector["v_match:Sgo"] = .9
+p_vector["v_match:Snogo"] = 1.25
+p_vector["a"] = log(1.2)
+p_vector["t0"] = log(.4)
+p_vector["Z"] = qnorm(.4)
+
+# Between-subject standard deviations
+p_sd <- sampled_pars(designWDM)
+
+p_sd["v_match:Sgo"] = .15
+p_sd["v_match:Snogo"] = .15
+p_sd["a"] = .05
+p_sd["t0"] = .05
+p_sd["Z"] = .10
+```
+
+### 1.3 Specifying the subject level parameters
+
+For this section, we are interested in creating DDM parameters for each person in the data. We start by creating an empty matrix to store this information in, then using a for loop, for each row (subject) we randomly pick a number from the parameter distributions created in the previous section. We do this using the `rnorm()` function, were we provide a mean and standard deviation for a normal distribution and the function returns a value from it. In our case, this function returns back 5 values, which in order are the go and no-go drift rates, followed by Z, a and t0. 
+
+We set a seed number to replicate our results from `rnorm()`.
+
+```{r Generating subject specific parameters}
+# Generate subject-specific parameters
+set.seed(123)
+
+# Create an empty matrix to keep subject specific parameters
+p_subjects <- matrix(NA, nrow = sub_n, ncol = length(p_vector))
+
+# For every subject, pick a parameter value at random from the population level distributions
+for (i in 1:sub_n) {
+  p_subjects[i, ] <- rnorm(length(p_vector), mean = p_vector,sd = p_sd)
+}
+
+# Assign row and column names
+rownames(p_subjects) <- as.character(1:sub_n)
+colnames(p_subjects) <- names(p_vector)
+
+# Print out the subject-level parameters
+head(p_subjects)
+```
+### 1.3 Creating the data
+
+The data creation part has two components since we want an unequal number of go and no-go trial. Most GNG datasets in the literature have a disproportionate number of go trials to habituate making a responses. Thus, here we need to create an empty dataframe that has the data specifications we have, which include the number of trials equal to the number of subjects in our data and the number of go and no-go trials each subject has (adds up to 1000). Plus, we also need to specify that our responses "go" and "nogo" are a factor or else the following function wont work.
+
+Lastly, we use the `make_data()` function and it creates our data. Notice the inputs for this data are the **subject-level parameters**, the data and model object, and our empty data structure.
+
+```{r Constructing the data}
+# Construct an unbalanced trial dataset
+trial_design <- expand.grid(
+  subjects = 1:sub_n,
+  trial = 1:1000) %>%
+  group_by(subjects) %>%
+  mutate(
+    S = rep(c("go", "nogo"), times = c(800, 200)),
+    S = factor(S, levels = c("go", "nogo")),
+    R = factor(NA_character_, levels = c("go", "nogo"))) %>% # Must be a factor even though empty
+  ungroup()
+
+# Generate simulated responses and RTs
+dat <- make_data(
+  parameters = p_subjects,
+  design = designWDM,
+  data = trial_design
+)
+```
+
+## 2. GNG Data Descriptives
+
+### 2.1 Aggregate descriptives for correct go and incorrect no-go trials
+
+We start by creating a data design object using the `data_design()` function. This allows us to use a plethora of custom functions to obtain descriptive information about our dataset.
+
+We then get some basic descriptives of our full dataset, such as the number of trials, the proportion of correct go and no-go trial and reaction time information. 
+
+```{r creating a data design object}
+# Create the data_design for the gng data
+gng_design <- data_design(
+  stimulus = S,
+  response = R,
+  rt = rt,
+  correct = S == R,
+  id = subjects
+)
+
+# Get the descriptives for the speed dataset
+get_descriptives(dat, gng_design)
+```
+### 2.2 Aggregate density plots for correct go and incorrect no-go trials
+
+Here we can visualize the reaction time distributions and we do it defectively, such that their size contains accuracy information embedded within them. 
+
+```{r generate a plot at the group level}
+# Generate the plot
+plot_defectiveDensityGNG(dat, gng_design)
+```
+
+### 2.3 Subject specific descriptives for correct go and incorrect no-go trials
+
+Here we produce a lot of descriptives related to subject performance. Not all of the information is needed but it is nice that it can produce so much just from the introduction of one argument into `get_descriptives()`. 
+
+```{r Get descriptives for subjects within the data}
+# Get the descriptives for the speed dataset
+get_descriptives(dat, gng_design, individual = TRUE)
+```
+
+### 2.4 Subject specific density plots for correct go and incorrect no-go trials
+
+
+```{r generate a plot at the participant level, message = F}
+# Generate the plots with individual performance
+plot_defectiveDensityGNG(dat, gng_design, individual = TRUE)
+```
+
+## 3. Specifying our Priors
+
+### 3.1 Specifying the prior means
+
+```{r specifying prior means}
+# Get an empty vector with DDM parameter names
+prior_pvec <- sampled_pars(designWDM)
+
+# Specify population-level prior means
+prior_pvec[grepl("^v_", names(prior_pvec))] <- 2
+prior_pvec["a"] <- log(1)
+prior_pvec["Z"] <- qnorm(.5)
+prior_pvec["t0"] <- log(.4)
+```
+
+### 3.2 Specifying the prior variances
+
+```{r specifying our prior variances}
+# Specify population-level prior variances
+prior_vvec <- sampled_pars(designWDM) + 1
+
+prior_vvec["Z"] <- .5
+prior_vvec["t0"] <- .5
+prior_vvec["a"] <- .25
+prior_vvec["t0"] <- .10
+```
+
+### 3.3 Creating the prior distributions
+
+```{r Creating our prior distributions}
+# Print this out to know how to correctly specify the inputs of prior
+prior_help("standard")
+
+# Create hierarchical prior
+prior <- prior(
+  design = designWDM,
+  type = "standard",
+  theta_mu_mean = prior_pvec,
+  theta_mu_var = prior_vvec
+)
+```
+
+
+### 3.4 Plotting the prior distributions
+
+
+```{r plotting our prior distributions}
+#| fig-width: 12
+#| fig-height: 10
+
+# Inspect priors
+plot(prior, map = FALSE)
+plot(prior, map = TRUE)
+```
+
+
+## 4. Fitting a Wiender Diffusion Model
+
+### 4.1 Fitting the model
+
+```{r fitting the model}
+# Create EMC2 object
+#emc <- make_emc(data = dat,
+#  design = designWDM,
+#  type = "standard",
+#  prior = prior
+#)
+
+# Fit hierarchical DDM
+#emc <- fit(
+#  emc = emc,
+#  stop_criteria = list(
+#    sample = list(
+#      iter = 1000,
+#      max_gd = 1.01
+#    )
+#  ),
+#  cores_per_chain = 2,
+#  cores_for_chains = 3
+#)
+
+# Save the model
+# save(emc, file = here("ddm", "hierarchical", "models", "gng_ddm_hierarchical.Rdata"))
+
+# Loading the model object
+load(here("ddm", "hierarchical", "models", "gng_ddm_hierarchical.Rdata"))
+```
+
+### 4.2 Check model convergence
+
+```{r Check model convergence}
+# Check model convergence
+check(emc, plot = FALSE)
+```
+
+
+### 4.3 Parameter recovery study
+
+```{r run a parameter recovery study}
+#| fig-width: 12
+#| fig-height: 10
+
+
+# Do a parameter recovery
+recovery(emc, p_subjects, selection = "alpha")
+```
+
+
+### 4.4 Comparing predicted datasets against observed
+
+```{r Comparing predicted datasets against observed}
+# Generating predicted datasets
+# pp <- predict(emc, n_cores = 4, n_post = 200)
+
+# Saving the predicted datasets
+#saveRDS(
+#  object = pp,
+#  file = here("ddm", "hierarchical", "data", "gng_ddm_hierarchical_pp.rds")
+#)
+
+# Loading them in
+pp <- readRDS(here("ddm", "hierarchical", "data", "gng_ddm_hierarchical_pp.rds"))
+
+# Observed accuracy
+aggregate(S == R ~ S, dat, mean)
+
+# Predicted accuracy
+aggregate(S == R ~ S + postn, pp, mean) %>%
+  setNames(c("S", "postn", "accuracy")) %>%
+  aggregate(accuracy ~ S, ., quantile, probs = c(.05, .5, .95))
+
+# Observed reaction times
+aggregate(rt ~ S + (S == R), dat, mean)
+
+# Predicted reaction times
+aggregate(rt ~ S + (S == R) + postn, pp, mean) %>%
+  setNames(c("S", "S==R", "postn", "rt")) %>%
+  aggregate(rt ~ S + `S==R`, ., quantile, probs = c(.05, .5, .95))
+```
+
+### 4.5 Producing defective plots with predicted datasets
+
+```{r producing defective plots with predicted datasets}
+# Posterior predictive plots
+plot_density(dat, pp, factors = c("S"))
+plot_cdf(dat, pp, factors = c("S"))
+```

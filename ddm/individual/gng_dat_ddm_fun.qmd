@@ -1,0 +1,254 @@
+---
+title: "Fitting a DDM to GNG data using DDM"
+editor: visual
+---
+  
+  Note: Do this first before running the code
+
+- install.packages("WienR", type = "source")
+- remotes::install_github("ampl-psych/EMC2", ref = "gng")
+
+```{r load in packages, message=F, warning=F}
+library(EMC2)
+library(dplyr)
+library(here)
+library(ggplot2)
+```
+
+```{r load in custom functions}
+# load in all custom ddm functions
+source(here("ddm", "load.R"))
+```
+
+## 1 Specifying data creation
+
+### 1.1 Creating the data and model design 
+
+We start by using the `design()` function to specify information about the data that we will be generating from DDM specifications. For example, we start by saying that there will be data from one subject and that there will be two stimuli presented by the name of 'go' and 'nogo'. This information is coded for in the 'factors' argument. Next, we use the 'Rlevels' argument to indicate what the responses are going to be. We are going to code for two responses 'go' and 'nogo', which match the name of the stimuli. We use the argument 'matchfun' to tell the model what a correct response is. In our case, we are saying that if S == R, then that is a correct respose. The 'd' I am guessing stands for data. In the documentation for the `design()` function, it states that the 'matchfun' function was designed for race models, however it works with out DDM just fine. The 'functions' argument is designed to create new factors based on the factors that were code for in the 'factors' argument. This is convenient, because we can use these new additional factors in our formula line. For our case, we creating a new factor named 'mach' where basically it is a contrasct factor of the numbers -1 and 1, where we state the a 'go' stimulus trial is -1 and a 'nogo' stimulus trial is 1. 
+
+Next we indicate that we are using the DDM for our 'model'. We then get to the good part, where we are specifying the model that we want to use to simulate the data (and later to use to estimate its parameters). 'v' is the drift rate and we set it to 'v~0 + match:S'. What this is doing is estimating the cell means rather than an effect, however, we specify 'match:S', which we basically know it is redundant information since the information from S directly matches the information from match since we used S to create match. Therefore this is doing something that I do not fully understand. For the rest of the parameters, we are estimating the relative starting point (Z), the boundary separation criterion (a), the non-decision time (t0), the within trial variability (s), and the between-trial variability for drift rate (sv). Lastly, we add 's' into the 'contraints' argument, which basically forces the within trial variability to be fixed to a specific value. This makes the rest of the model parameters identifiable. 
+
+```{r create the data and model design}
+# Creating the data and model design
+designDDM <- design(
+  factors= list(subjects=1,S=c("go","nogo")),
+  Rlevels=c("go","nogo"),
+  matchfun= function(d) as.numeric(d$S) == as.numeric(d$lR),
+  functions= list(match=function(d) ifelse(d$S=="go",-1,1)), 
+  model= DDM,
+  formula=list(v~0 + match:S,
+               Z~1, 
+               a~1, 
+               t0~1, 
+               s~1, 
+               sv~1), 
+  constants = c(s=log(1)) 
+)
+```
+
+### 1.2 Creating the GNG data
+
+Here we create an object named 'p_vector' that will contain the parameter values we will use to simulate the GNG data. To be efficient, we use the `sampled_par()` function to extract an empty vector that contains the names of the parameters we can specify values for. By default all of the values are 0. Next, we insert the values we want to simulate the data. We start with our drift rates which have an odd name of 'v_match:Sgo' and 'v_math:Snogo'. Essentially there are just two drift rates and in our case we want the nogo trials to result in better performance than the go trials by giving it a larger drift rate. Increasing the drift rate does not just mean better accuracy, but also a faster reaction time as well (which is funny because technically correct no-go trials do not have a reaction time!). We then specify the boundary separaton value of 1.25, however it needs to be in logit scale so we wrap as log(1.25). Similarly, we want a relative starting point of 0.4, however it needs to be the probit scale so we wrap it as probit(0.4). Also, notice that the value we chose is not equal to 0.5, indicating that we want to simulate a bias. Since in the `design()` code we set 'go' to be a part of the lower boundary (set it equal to -1), this bias here will be to favor go trials. We then specify a non-decision time for 200 ms but we wrap it as log(.2) and lastly we state a drift rate variability of log(.2). 
+
+After finishing populating our 'p_vector' object and printing it out to confirm, we can then use the `make_data()` function to simulate our data using it as an input along with our design object and the number of trials we want for the data (for each stimuli). 
+
+```{r Creating the GNG data}
+# Extract an empty vector with names of DDM parameters
+p_vector <- sampled_pars(designDDM)
+p_vector
+
+# Populate the vector with estimates we want to simulate data for
+p_vector["v_match:Sgo"] = .9 
+p_vector["v_match:Snogo"] = 1.25 
+p_vector["a"] = log(1.2) 
+p_vector["t0"] = log(.2) 
+p_vector["Z"] = qnorm(0.4) 
+p_vector["sv"] = log(.2) 
+
+# Visualize the populated vector with parameter values
+p_vector
+
+# That is, we set UC = 0 for nogo outcomes and Inf for go outcomes, and we ensure R=="nogo" for nogo outcomes (not NA as I previosuly indicated)
+dat <- make_data(p_vector,
+                 designDDM, 
+                 n_trials=1000)
+```
+
+### 1.3 Investigate the GNG data descriptives
+
+#### 1.3.1 Using the data_design() approach
+
+We can use custom functions I created to get some valuable descriptives of the data. These are also nice since they also allow the production of plots from the data. From the output, we can see there are 1,000 trials for each stimulus and that nogo trials were performed more poorly than go trials. At first this may seem like a surprising result, as we specified in the previous section for no-go trials to have a larger drift rate. However, what we are seeing here is the contribution of a biased response. Us setting the relative starting point closer to the -1 boundary, which represents a go response, as a result leads to a higher proportions of go trials being correct. Next we can look at reaction times for the go and no-go trials, in this case these reaction times represent correct go trials and incorrect no-go trials. Visually it appears that no-go trials begin to be faster than go trials at the median of the distribution and it becomes more obvious at the larger quantiles of the distribution.
+
+```{r create a data_design object}
+# Create the data_design for the gng data
+gng_design <- data_design(
+  stimulus = S,
+  response = R,
+  rt = rt,
+  correct = S == R,
+  id = subjects
+)
+
+# Get the descriptives for the speed dataset
+get_descriptives(dat, gng_design)
+```
+
+#### 1.3.2 Using the aggregate() approach
+
+It is also important to note that we can get a quick and dirty summary of the information above just by running the `aggregate()` function. This is a very powerful function once you get the hang of it. 
+
+```{r investigating descrives using the aggregate fuction}
+aggregate(S==R~S ,dat, mean)
+aggregate(S==R~S ,dat, length) # or xtabs(~S, dat)
+aggregate(rt ~ (S==R)+S ,dat, quantile, probs = c(.025, .5, .975))
+```
+
+#### 1.3.3 Plotting the defective reaction time distribution
+
+Since we already went through the trouble of creating the data_design object, we can go ahead and plot our reaction time distribution as defective. 
+
+```{r plotting the distribution}
+# Generate the plot
+plot_defectiveDensityGNG(dat, gng_design)
+```
+
+
+## 2 Fitting a DDM to the GNG data
+
+### 2.1 Specifying our prior means and variances
+
+Here we specify our prior information, which consist of distribution means and variances (no longer standard deviations). We use the same trick as above by using the `sampled_pars()` function to get an empty vector with the names of our parameters. We then specify our means, using values from the literature that are reasonable (e.g., v = 2, a = 1, Z = 0.5, t0 = .3). Next we specify the variances. We first start by setting all variances to 1, and then change the variances of t0, Z and sv to 0.5. 
+
+The initial code for this document used the input 'theta_mu_sd', however, I think that worked for an earlier version of the EMC2 package. Now, with the help of the `prior_help()` function, we identified that this input has changed to 'theta_mu_var', so that is why specified a vector of variances. We can even double check that we did this correctly by just priting out the prior object we created from the `prior()` function. Note, since we simulated data from one subject, we need to tell the `prior()` function that we will be fitting a regular non-hierarchical ddm by coding 'type = "single"'.
+
+```{r specifying our priors}
+# Get an empty vector with DDM parameter names
+prior_pvec = sampled_pars(designDDM)
+
+# Specifying our prior means
+prior_pvec[grepl("^v_",names(prior_pvec))] = 2 
+prior_pvec[grepl("^a",names(prior_pvec))] = log(1) 
+prior_pvec[grepl("^Z",names(prior_pvec))] = qnorm(0.5) 
+prior_pvec[grepl("^t0",names(prior_pvec))] = log(.3)
+prior_pvec
+
+# Get a vector filled with 1s with theDDM parameter names
+prior_vvec = sampled_pars(designDDM) + 1
+
+# Specifying our prior standard deviations
+prior_vvec[grepl("^t0",names(prior_pvec))] = .5 
+prior_vvec[grepl("^Z",names(prior_pvec))] = .5 
+prior_vvec[grepl("^sv",names(prior_pvec))] = .5 
+prior_vvec
+
+# Check non-documented prior() arguments
+prior_help("single")
+
+# Generate the prior object
+prior <- prior(design = designDDM,
+               theta_mu_mean = prior_pvec, 
+               theta_mu_var = prior_vvec, 
+               type="single")
+
+# Check what we specified
+prior
+```
+
+### 2.2 Visualizing our priors
+
+It is highly recommend to visualize your priors back in the normal scale. We can quickly inspect if the prior distributions look reasonable, which in our case they do.
+
+```{r Visualizing our priors}
+#| fig-width: 12
+#| fig-height: 8
+
+# Plotting our priors distribution
+plot(prior, map = TRUE)
+```
+
+### 2.3 Fitting the DDM
+
+Like always, we start by making an 'emc' object using the `make_emc()` function. Here we specify the data we want to fit the model to, the model design information, our priors, and that it is a non-hierarhical data.
+
+Next we start the model fitting process. We specify some arguments but for right now they are not important. What matters is the model fitting process begins by using the function `fit()`. Also while this occurs, messages are printed indicating how the model fitting process is going.
+
+```{r Fitting the ddm}
+# Create an emc object
+emc <- make_emc(data = dat,
+                design = designDDM,
+                type = "single",
+                prior = prior)
+
+# Fit the DDM 
+emc <- fit(emc = emc,
+           stop_criteria = list(sample = list(iter = 1000,
+                                              max_gd = 1.10)),
+           cores_per_chain = 1,
+           cores_for_chains = 3,
+           #max_tries = 30
+)
+```
+
+### 2.4 Check model convergence
+
+All the Rhat values are wayy below 1.1, indicating each model parameter converged just fine. 
+
+```{r check model convergence}
+check(emc)
+```
+
+
+## 3. Investigating model capturing of the data
+
+### 3.1 Generate predicted datasets
+
+```{r Produce predicted datasets}
+# Obtain predicted datasets
+pp <- predict(emc, n_cores = 4, n_post = 200)
+```
+
+### 3.2 Compare accuracy between the original GNG and predicted datasets
+
+Using the `aggregate()` function we can see that the original dataset accuracies for go and no-go trials are within the 95% distribution of predicted dataset averages.
+
+```{r compare accuracy between original and predicted datasets}
+aggregate(S==R~S, dat, mean)
+aggregate(S==R~S+postn, pp, mean) %>%
+  setNames(c("S", "postn", "accuracy")) %>%
+  aggregate(accuracy~S,., quantile, probs = c(.05, .5, .95))
+```
+### 3.3 Compare reaction time between the original GNG and predicted datasets
+
+Using the `aggregate()` function we can see that the original dataset reaction times for go and no-go trials are within the 95% distribution of predicted dataset averages.
+
+```{r compare reaction time between original and predicted datasets}
+aggregate(rt~S+(S==R), dat, mean)
+aggregate(rt ~ S + (S == R) + postn, pp, mean) %>%
+  setNames(c("S", "S==R", "postn", "rt")) %>%
+  aggregate(rt ~ S + `S==R`, ., quantile, probs = c(.05, .5, .95))
+```
+
+
+### 3.4 Plotting the predicted datasets over the original GNG
+
+Using the `plot_density()` and `plot_cdf()` functions, we can see that the predicted datasets (green) nicely overlap our original data- showing that our model is doing a good job of capturing the data. 
+
+```{r plotting the predicted datasets over the original GNG}
+plot_density(dat, pp, factors = c("S"))
+plot_cdf(dat, pp, factors = c("S"))
+```
+
+### 3.5 Checking the model with parmeter recovery
+
+```{r checking the model with parameter recovery}
+# Do a parameter recovery study
+print(recovery(emc, p_vector,selection="alpha"))
+```
+
+
+### 3.6 Investigating the estimated parameters
+
+```{r Investigating the estimated model parameters}
+
+```

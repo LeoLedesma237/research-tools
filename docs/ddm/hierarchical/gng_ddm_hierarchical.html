@@ -1,0 +1,1182 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.5.57">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>Fitting a Hierarchical DDM on GNG data – Research Tools</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { display: inline-block; text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="../../site_libs/quarto-nav/quarto-nav.js"></script>
+<script src="../../site_libs/quarto-nav/headroom.min.js"></script>
+<script src="../../site_libs/clipboard/clipboard.min.js"></script>
+<script src="../../site_libs/quarto-search/autocomplete.umd.js"></script>
+<script src="../../site_libs/quarto-search/fuse.min.js"></script>
+<script src="../../site_libs/quarto-search/quarto-search.js"></script>
+<meta name="quarto:offset" content="../../">
+<script src="../../site_libs/quarto-html/quarto.js"></script>
+<script src="../../site_libs/quarto-html/popper.min.js"></script>
+<script src="../../site_libs/quarto-html/tippy.umd.min.js"></script>
+<script src="../../site_libs/quarto-html/anchor.min.js"></script>
+<link href="../../site_libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="../../site_libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="../../site_libs/bootstrap/bootstrap.min.js"></script>
+<link href="../../site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="../../site_libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
+<script id="quarto-search-options" type="application/json">{
+  "location": "navbar",
+  "copy-button": false,
+  "collapse-after": 3,
+  "panel-placement": "end",
+  "type": "overlay",
+  "limit": 50,
+  "keyboard-shortcut": [
+    "f",
+    "/",
+    "s"
+  ],
+  "show-item-context": false,
+  "language": {
+    "search-no-results-text": "No results",
+    "search-matching-documents-text": "matching documents",
+    "search-copy-link-title": "Copy link to search",
+    "search-hide-matches-text": "Hide additional matches",
+    "search-more-match-text": "more match in this document",
+    "search-more-matches-text": "more matches in this document",
+    "search-clear-button-title": "Clear",
+    "search-text-placeholder": "",
+    "search-detached-cancel-button-title": "Cancel",
+    "search-submit-button-title": "Submit",
+    "search-label": "Search"
+  }
+}</script>
+
+
+</head>
+
+<body class="nav-fixed">
+
+<div id="quarto-search-results"></div>
+  <header id="quarto-header" class="headroom fixed-top">
+    <nav class="navbar navbar-expand-lg " data-bs-theme="dark">
+      <div class="navbar-container container-fluid">
+      <div class="navbar-brand-container mx-auto">
+    <a class="navbar-brand" href="../../index.html">
+    <span class="navbar-title">Research Tools</span>
+    </a>
+  </div>
+            <div id="quarto-search" class="" title="Search"></div>
+          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse" aria-controls="navbarCollapse" role="menu" aria-expanded="false" aria-label="Toggle navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+  <span class="navbar-toggler-icon"></span>
+</button>
+          <div class="collapse navbar-collapse" id="navbarCollapse">
+            <ul class="navbar-nav navbar-nav-scroll me-auto">
+  <li class="nav-item">
+    <a class="nav-link" href="../../index.html"> 
+<span class="menu-text">Home</span></a>
+  </li>  
+  <li class="nav-item dropdown ">
+    <a class="nav-link dropdown-toggle" href="#" id="nav-menu-drift-diffusion-models" role="link" data-bs-toggle="dropdown" aria-expanded="false">
+ <span class="menu-text">Drift Diffusion Models</span>
+    </a>
+    <ul class="dropdown-menu" aria-labelledby="nav-menu-drift-diffusion-models">    
+        <li>
+    <a class="dropdown-item" href="../../ddm/individual.html">
+ <span class="dropdown-text">Individual-Level Models</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="../../ddm/hierarchical.qmd">
+ <span class="dropdown-text">Hierarchical Models</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="../../ddm/joint.qmd">
+ <span class="dropdown-text">Joint Neuroimaging Models</span></a>
+  </li>  
+    </ul>
+  </li>
+</ul>
+          </div> <!-- /navcollapse -->
+            <div class="quarto-navbar-tools">
+</div>
+      </div> <!-- /container-fluid -->
+    </nav>
+</header>
+<!-- content -->
+<div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article page-navbar">
+<!-- sidebar -->
+<!-- margin-sidebar -->
+    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+        <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">On this page</h2>
+   
+  <ul>
+  <li><a href="#generating-the-gng-data" id="toc-generating-the-gng-data" class="nav-link active" data-scroll-target="#generating-the-gng-data">1. Generating the GNG data</a>
+  <ul class="collapse">
+  <li><a href="#specifying-the-model-and-data-making-information" id="toc-specifying-the-model-and-data-making-information" class="nav-link" data-scroll-target="#specifying-the-model-and-data-making-information">1.1 Specifying the model and data making information</a></li>
+  <li><a href="#specifying-the-population-level-parameters" id="toc-specifying-the-population-level-parameters" class="nav-link" data-scroll-target="#specifying-the-population-level-parameters">1.2 Specifying the population level parameters</a></li>
+  <li><a href="#specifying-the-subject-level-parameters" id="toc-specifying-the-subject-level-parameters" class="nav-link" data-scroll-target="#specifying-the-subject-level-parameters">1.3 Specifying the subject level parameters</a></li>
+  <li><a href="#creating-the-data" id="toc-creating-the-data" class="nav-link" data-scroll-target="#creating-the-data">1.3 Creating the data</a></li>
+  </ul></li>
+  <li><a href="#gng-data-descriptives" id="toc-gng-data-descriptives" class="nav-link" data-scroll-target="#gng-data-descriptives">2. GNG Data Descriptives</a>
+  <ul class="collapse">
+  <li><a href="#aggregate-descriptives-for-correct-go-and-incorrect-no-go-trials" id="toc-aggregate-descriptives-for-correct-go-and-incorrect-no-go-trials" class="nav-link" data-scroll-target="#aggregate-descriptives-for-correct-go-and-incorrect-no-go-trials">2.1 Aggregate descriptives for correct go and incorrect no-go trials</a></li>
+  <li><a href="#aggregate-density-plots-for-correct-go-and-incorrect-no-go-trials" id="toc-aggregate-density-plots-for-correct-go-and-incorrect-no-go-trials" class="nav-link" data-scroll-target="#aggregate-density-plots-for-correct-go-and-incorrect-no-go-trials">2.2 Aggregate density plots for correct go and incorrect no-go trials</a></li>
+  <li><a href="#subject-specific-descriptives-for-correct-go-and-incorrect-no-go-trials" id="toc-subject-specific-descriptives-for-correct-go-and-incorrect-no-go-trials" class="nav-link" data-scroll-target="#subject-specific-descriptives-for-correct-go-and-incorrect-no-go-trials">2.3 Subject specific descriptives for correct go and incorrect no-go trials</a></li>
+  <li><a href="#subject-specific-density-plots-for-correct-go-and-incorrect-no-go-trials" id="toc-subject-specific-density-plots-for-correct-go-and-incorrect-no-go-trials" class="nav-link" data-scroll-target="#subject-specific-density-plots-for-correct-go-and-incorrect-no-go-trials">2.4 Subject specific density plots for correct go and incorrect no-go trials</a></li>
+  </ul></li>
+  <li><a href="#specifying-our-priors" id="toc-specifying-our-priors" class="nav-link" data-scroll-target="#specifying-our-priors">3. Specifying our Priors</a>
+  <ul class="collapse">
+  <li><a href="#specifying-the-prior-means" id="toc-specifying-the-prior-means" class="nav-link" data-scroll-target="#specifying-the-prior-means">3.1 Specifying the prior means</a></li>
+  <li><a href="#specifying-the-prior-variances" id="toc-specifying-the-prior-variances" class="nav-link" data-scroll-target="#specifying-the-prior-variances">3.2 Specifying the prior variances</a></li>
+  <li><a href="#creating-the-prior-distributions" id="toc-creating-the-prior-distributions" class="nav-link" data-scroll-target="#creating-the-prior-distributions">3.3 Creating the prior distributions</a></li>
+  <li><a href="#plotting-the-prior-distributions" id="toc-plotting-the-prior-distributions" class="nav-link" data-scroll-target="#plotting-the-prior-distributions">3.4 Plotting the prior distributions</a></li>
+  </ul></li>
+  <li><a href="#fitting-a-wiender-diffusion-model" id="toc-fitting-a-wiender-diffusion-model" class="nav-link" data-scroll-target="#fitting-a-wiender-diffusion-model">4. Fitting a Wiender Diffusion Model</a>
+  <ul class="collapse">
+  <li><a href="#fitting-the-model" id="toc-fitting-the-model" class="nav-link" data-scroll-target="#fitting-the-model">4.1 Fitting the model</a></li>
+  <li><a href="#check-model-convergence" id="toc-check-model-convergence" class="nav-link" data-scroll-target="#check-model-convergence">4.2 Check model convergence</a></li>
+  <li><a href="#parameter-recovery-study" id="toc-parameter-recovery-study" class="nav-link" data-scroll-target="#parameter-recovery-study">4.3 Parameter recovery study</a></li>
+  <li><a href="#comparing-predicted-datasets-against-observed" id="toc-comparing-predicted-datasets-against-observed" class="nav-link" data-scroll-target="#comparing-predicted-datasets-against-observed">4.4 Comparing predicted datasets against observed</a></li>
+  <li><a href="#producing-defective-plots-with-predicted-datasets" id="toc-producing-defective-plots-with-predicted-datasets" class="nav-link" data-scroll-target="#producing-defective-plots-with-predicted-datasets">4.5 Producing defective plots with predicted datasets</a></li>
+  </ul></li>
+  </ul>
+</nav>
+    </div>
+<!-- main -->
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">Fitting a Hierarchical DDM on GNG data</h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<p>The goal of this document is to walkthrough the creation of hierarchicall GNG data followed by the model fitting process.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb1"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co"># load in packages</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(EMC2)</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(dplyr)</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(here)</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(ggplot2)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb2"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Load custom DDM functions</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="fu">source</span>(<span class="fu">here</span>(<span class="st">"ddm"</span>, <span class="st">"load.R"</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<section id="generating-the-gng-data" class="level2">
+<h2 class="anchored" data-anchor-id="generating-the-gng-data">1. Generating the GNG data</h2>
+<section id="specifying-the-model-and-data-making-information" class="level3">
+<h3 class="anchored" data-anchor-id="specifying-the-model-and-data-making-information">1.1 Specifying the model and data making information</h3>
+<p>We start by specifying that we want to have a dataset comprised of 60 subjects. This will be a Go/No-Go (GNG) datasets where most trials will require a response (go) while the fewer remaining trials will not (nogo). To create the backbone of what we want, we start by using the <code>design()</code> function, which specifies both the design of the data and the model (DDM) that we will use.</p>
+<p>We start by specifying our main factors of interest which are subjects, and S (stimuli). We state that we want data for 60 participants and that the data will be made up of “go” and “nogo” stimuli. Next, we indicate what the responses are going to be, which are “go” and “nogo”. As is, these responses do not mean anything to the model. However, we can then supply more information into ‘matchfun’ and ‘functions’ arguments, which tell the model a) which boundary the “go” and “nogo” response will represent, with the “go” response representing the bottome or negative boundary (idk).</p>
+<p>From there, we specify what model we want to use which is the DDM, followed by the formula. The formula we chose is a regular Wiender diffusion model (WDM). Lastly, since we specify within trial-error into the formula (s), we also add this paramter into ‘constants’, such that the model knows to fix this value rather than estimate it.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb3"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Number of subjects</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>sub_n <span class="ot">&lt;-</span> <span class="dv">60</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Create model design</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>designWDM <span class="ot">&lt;-</span> <span class="fu">design</span>(</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>  <span class="at">factors =</span> <span class="fu">list</span>(<span class="at">subjects =</span> <span class="dv">1</span><span class="sc">:</span>sub_n, <span class="at">S =</span> <span class="fu">c</span>(<span class="st">"go"</span>, <span class="st">"nogo"</span>)),</span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>  <span class="at">Rlevels =</span> <span class="fu">c</span>(<span class="st">"go"</span>, <span class="st">"nogo"</span>),</span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>  <span class="at">matchfun =</span> <span class="cf">function</span>(d) <span class="fu">as.numeric</span>(d<span class="sc">$</span>S) <span class="sc">==</span> <span class="fu">as.numeric</span>(d<span class="sc">$</span>lR),</span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>  <span class="at">functions =</span> <span class="fu">list</span>(<span class="at">match =</span> <span class="cf">function</span>(d) <span class="fu">ifelse</span>(d<span class="sc">$</span>S <span class="sc">==</span> <span class="st">"go"</span>, <span class="sc">-</span><span class="dv">1</span>, <span class="dv">1</span>)),</span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>  <span class="at">model =</span> DDM,</span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>  <span class="at">formula =</span> <span class="fu">list</span>(</span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a>    v <span class="sc">~</span> <span class="dv">0</span> <span class="sc">+</span> match<span class="sc">:</span>S,</span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a>    Z <span class="sc">~</span> <span class="dv">1</span>,</span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a>    a <span class="sc">~</span> <span class="dv">1</span>,</span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a>    t0 <span class="sc">~</span> <span class="dv">1</span>,</span>
+<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a>    s <span class="sc">~</span> <span class="dv">1</span></span>
+<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a>  ),</span>
+<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a>  <span class="at">constants =</span> <span class="fu">c</span>(<span class="at">s =</span> <span class="fu">log</span>(<span class="dv">1</span>))</span>
+<span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Parameter(s) st0, sv, SZ not specified in formula and assumed constant.</code></pre>
+</div>
+<div class="cell-output cell-output-stdout">
+<pre><code>
+ Sampled Parameters: 
+[1] "v_match:Sgo"   "v_match:Snogo" "Z"             "a"            
+[5] "t0"           
+
+ Design Matrices: 
+$v
+ match    S v_match:Sgo v_match:Snogo
+    -1   go          -1             0
+     1 nogo           0             1
+
+$Z
+ Z
+ 1
+
+$a
+ a
+ 1
+
+$t0
+ t0
+  1
+
+$s
+ s
+ 1
+
+$st0
+ st0
+   1
+
+$sv
+ sv
+  1
+
+$SZ
+ SZ
+  1</code></pre>
+</div>
+</div>
+</section>
+<section id="specifying-the-population-level-parameters" class="level3">
+<h3 class="anchored" data-anchor-id="specifying-the-population-level-parameters">1.2 Specifying the population level parameters</h3>
+<p>Here we are creating two vectors that contain information about the <strong>population level parameters</strong>. These are going to be the value that will represent the average estimates across all subjects in the sample. In other words, we can think of the drift rates below as like the mean of all the drift rates from all subjects within the sample (with some caveats). Additionally, we are not solely specifying the values we want for the drift rates and other parameters, but also their distributions. Lastly, it is important to note when specifying the values below, to use the correct transformations, as the transformed value is what will be used during the model estimation process.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb6"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Population means</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>p_vector <span class="ot">&lt;-</span> <span class="fu">sampled_pars</span>(designWDM)</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>p_vector[<span class="st">"v_match:Sgo"</span>] <span class="ot">=</span> .<span class="dv">9</span></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>p_vector[<span class="st">"v_match:Snogo"</span>] <span class="ot">=</span> <span class="fl">1.25</span></span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>p_vector[<span class="st">"a"</span>] <span class="ot">=</span> <span class="fu">log</span>(<span class="fl">1.2</span>)</span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>p_vector[<span class="st">"t0"</span>] <span class="ot">=</span> <span class="fu">log</span>(.<span class="dv">4</span>)</span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>p_vector[<span class="st">"Z"</span>] <span class="ot">=</span> <span class="fu">qnorm</span>(.<span class="dv">4</span>)</span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a><span class="co"># Between-subject standard deviations</span></span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a>p_sd <span class="ot">&lt;-</span> <span class="fu">sampled_pars</span>(designWDM)</span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a>p_sd[<span class="st">"v_match:Sgo"</span>] <span class="ot">=</span> .<span class="dv">15</span></span>
+<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a>p_sd[<span class="st">"v_match:Snogo"</span>] <span class="ot">=</span> .<span class="dv">15</span></span>
+<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a>p_sd[<span class="st">"a"</span>] <span class="ot">=</span> .<span class="dv">05</span></span>
+<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a>p_sd[<span class="st">"t0"</span>] <span class="ot">=</span> .<span class="dv">05</span></span>
+<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a>p_sd[<span class="st">"Z"</span>] <span class="ot">=</span> .<span class="dv">10</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="specifying-the-subject-level-parameters" class="level3">
+<h3 class="anchored" data-anchor-id="specifying-the-subject-level-parameters">1.3 Specifying the subject level parameters</h3>
+<p>For this section, we are interested in creating DDM parameters for each person in the data. We start by creating an empty matrix to store this information in, then using a for loop, for each row (subject) we randomly pick a number from the parameter distributions created in the previous section. We do this using the <code>rnorm()</code> function, were we provide a mean and standard deviation for a normal distribution and the function returns a value from it. In our case, this function returns back 5 values, which in order are the go and no-go drift rates, followed by Z, a and t0.</p>
+<p>We set a seed number to replicate our results from <code>rnorm()</code>.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb7"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Generate subject-specific parameters</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="fu">set.seed</span>(<span class="dv">123</span>)</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Create an empty matrix to keep subject specific parameters</span></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>p_subjects <span class="ot">&lt;-</span> <span class="fu">matrix</span>(<span class="cn">NA</span>, <span class="at">nrow =</span> sub_n, <span class="at">ncol =</span> <span class="fu">length</span>(p_vector))</span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a><span class="co"># For every subject, pick a parameter value at random from the population level distributions</span></span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> (i <span class="cf">in</span> <span class="dv">1</span><span class="sc">:</span>sub_n) {</span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>  p_subjects[i, ] <span class="ot">&lt;-</span> <span class="fu">rnorm</span>(<span class="fu">length</span>(p_vector), <span class="at">mean =</span> p_vector,<span class="at">sd =</span> p_sd)</span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a><span class="co"># Assign row and column names</span></span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a><span class="fu">rownames</span>(p_subjects) <span class="ot">&lt;-</span> <span class="fu">as.character</span>(<span class="dv">1</span><span class="sc">:</span>sub_n)</span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a><span class="fu">colnames</span>(p_subjects) <span class="ot">&lt;-</span> <span class="fu">names</span>(p_vector)</span>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a><span class="co"># Print out the subject-level parameters</span></span>
+<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a><span class="fu">head</span>(p_subjects)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>  v_match:Sgo v_match:Snogo           Z         a         t0
+1   0.8159287      1.215473 -0.09747627 0.1858470 -0.9098263
+2   1.1572597      1.319137 -0.37985323 0.1479789 -0.9385738
+3   1.0836123      1.303972 -0.21326996 0.1878557 -0.9440828
+4   1.1680370      1.324678 -0.45000882 0.2173894 -0.9399303
+5   0.7398264      1.217304 -0.35594755 0.1458770 -0.9475427
+6   0.6469960      1.375668 -0.23800979 0.1254147 -0.8536000</code></pre>
+</div>
+</div>
+</section>
+<section id="creating-the-data" class="level3">
+<h3 class="anchored" data-anchor-id="creating-the-data">1.3 Creating the data</h3>
+<p>The data creation part has two components since we want an unequal number of go and no-go trial. Most GNG datasets in the literature have a disproportionate number of go trials to habituate making a responses. Thus, here we need to create an empty dataframe that has the data specifications we have, which include the number of trials equal to the number of subjects in our data and the number of go and no-go trials each subject has (adds up to 1000). Plus, we also need to specify that our responses “go” and “nogo” are a factor or else the following function wont work.</p>
+<p>Lastly, we use the <code>make_data()</code> function and it creates our data. Notice the inputs for this data are the <strong>subject-level parameters</strong>, the data and model object, and our empty data structure.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb9"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Construct an unbalanced trial dataset</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>trial_design <span class="ot">&lt;-</span> <span class="fu">expand.grid</span>(</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">subjects =</span> <span class="dv">1</span><span class="sc">:</span>sub_n,</span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">trial =</span> <span class="dv">1</span><span class="sc">:</span><span class="dv">1000</span>) <span class="sc">%&gt;%</span></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(subjects) <span class="sc">%&gt;%</span></span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(</span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>    <span class="at">S =</span> <span class="fu">rep</span>(<span class="fu">c</span>(<span class="st">"go"</span>, <span class="st">"nogo"</span>), <span class="at">times =</span> <span class="fu">c</span>(<span class="dv">800</span>, <span class="dv">200</span>)),</span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>    <span class="at">S =</span> <span class="fu">factor</span>(S, <span class="at">levels =</span> <span class="fu">c</span>(<span class="st">"go"</span>, <span class="st">"nogo"</span>)),</span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>    <span class="at">R =</span> <span class="fu">factor</span>(<span class="cn">NA_character_</span>, <span class="at">levels =</span> <span class="fu">c</span>(<span class="st">"go"</span>, <span class="st">"nogo"</span>))) <span class="sc">%&gt;%</span> <span class="co"># Must be a factor even though empty</span></span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a>  <span class="fu">ungroup</span>()</span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a><span class="co"># Generate simulated responses and RTs</span></span>
+<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a>dat <span class="ot">&lt;-</span> <span class="fu">make_data</span>(</span>
+<span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a>  <span class="at">parameters =</span> p_subjects,</span>
+<span id="cb9-15"><a href="#cb9-15" aria-hidden="true" tabindex="-1"></a>  <span class="at">design =</span> designWDM,</span>
+<span id="cb9-16"><a href="#cb9-16" aria-hidden="true" tabindex="-1"></a>  <span class="at">data =</span> trial_design</span>
+<span id="cb9-17"><a href="#cb9-17" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+</section>
+<section id="gng-data-descriptives" class="level2">
+<h2 class="anchored" data-anchor-id="gng-data-descriptives">2. GNG Data Descriptives</h2>
+<section id="aggregate-descriptives-for-correct-go-and-incorrect-no-go-trials" class="level3">
+<h3 class="anchored" data-anchor-id="aggregate-descriptives-for-correct-go-and-incorrect-no-go-trials">2.1 Aggregate descriptives for correct go and incorrect no-go trials</h3>
+<p>We start by creating a data design object using the <code>data_design()</code> function. This allows us to use a plethora of custom functions to obtain descriptive information about our dataset.</p>
+<p>We then get some basic descriptives of our full dataset, such as the number of trials, the proportion of correct go and no-go trial and reaction time information.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb10"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Create the data_design for the gng data</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>gng_design <span class="ot">&lt;-</span> <span class="fu">data_design</span>(</span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">stimulus =</span> S,</span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">response =</span> R,</span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>  <span class="at">rt =</span> rt,</span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>  <span class="at">correct =</span> S <span class="sc">==</span> R,</span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a>  <span class="at">id =</span> subjects</span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a><span class="co"># Get the descriptives for the speed dataset</span></span>
+<span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a><span class="fu">get_descriptives</span>(dat, gng_design)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>$accuracy
+# A tibble: 2 × 5
+  stimulus n_subjects n_trials n_correct prop_correct
+  &lt;fct&gt;         &lt;int&gt;    &lt;int&gt;     &lt;int&gt;        &lt;dbl&gt;
+1 go               60    48000     39736        0.828
+2 nogo             60    12000      8838        0.737
+
+$reaction_time
+# A tibble: 2 × 9
+  stimulus correct   min   q05   q25   q50   m75   q95   max
+  &lt;fct&gt;    &lt;lgl&gt;   &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;
+1 go       TRUE    0.378 0.438 0.499 0.59   0.76  1.18  3.31
+2 nogo     FALSE   0.388 0.433 0.492 0.573  0.73  1.12  2.81</code></pre>
+</div>
+</div>
+</section>
+<section id="aggregate-density-plots-for-correct-go-and-incorrect-no-go-trials" class="level3">
+<h3 class="anchored" data-anchor-id="aggregate-density-plots-for-correct-go-and-incorrect-no-go-trials">2.2 Aggregate density plots for correct go and incorrect no-go trials</h3>
+<p>Here we can visualize the reaction time distributions and we do it defectively, such that their size contains accuracy information embedded within them.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb12"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Generate the plot</span></span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="fu">plot_defectiveDensityGNG</span>(dat, gng_design)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="gng_ddm_hierarchical_files/figure-html/generate a plot at the group level-1.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+</div>
+</section>
+<section id="subject-specific-descriptives-for-correct-go-and-incorrect-no-go-trials" class="level3">
+<h3 class="anchored" data-anchor-id="subject-specific-descriptives-for-correct-go-and-incorrect-no-go-trials">2.3 Subject specific descriptives for correct go and incorrect no-go trials</h3>
+<p>Here we produce a lot of descriptives related to subject performance. Not all of the information is needed but it is nice that it can produce so much just from the introduction of one argument into <code>get_descriptives()</code>.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb13"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Get the descriptives for the speed dataset</span></span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="fu">get_descriptives</span>(dat, gng_design, <span class="at">individual =</span> <span class="cn">TRUE</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>$accuracy
+# A tibble: 2 × 5
+  stimulus n_subjects n_trials n_correct prop_correct
+  &lt;fct&gt;         &lt;int&gt;    &lt;int&gt;     &lt;int&gt;        &lt;dbl&gt;
+1 go               60    48000     39736        0.828
+2 nogo             60    12000      8838        0.737
+
+$reaction_time
+# A tibble: 2 × 9
+  stimulus correct   min   q05   q25   q50   m75   q95   max
+  &lt;fct&gt;    &lt;lgl&gt;   &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;
+1 go       TRUE    0.378 0.438 0.499 0.59   0.76  1.18  3.31
+2 nogo     FALSE   0.388 0.433 0.492 0.573  0.73  1.12  2.81
+
+$individual_accuracy
+# A tibble: 2 × 11
+  stimulus n_subjects  mean    sd   min   q05   q25   q50   q75   q95   max
+  &lt;fct&gt;         &lt;int&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;
+1 go               60 0.828 0.04  0.752  0.76 0.802 0.826 0.846 0.903 0.919
+2 nogo             60 0.737 0.048 0.635  0.66 0.708 0.738 0.77  0.815 0.835
+
+$individual_reaction_time
+# A tibble: 2 × 13
+  stimulus correct n_subjects mean_rt sd_mean_rt   min   q05   q25   q50   q75
+  &lt;fct&gt;    &lt;lgl&gt;        &lt;int&gt;   &lt;dbl&gt;      &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;
+1 go       TRUE            60   0.673      0.041 0.568 0.607 0.648 0.68  0.705
+2 nogo     FALSE           60   0.65       0.051 0.545 0.569 0.614 0.655 0.677
+# ℹ 3 more variables: q95 &lt;dbl&gt;, max &lt;dbl&gt;, mean_median_rt &lt;dbl&gt;
+
+$subject_accuracy
+# A tibble: 120 × 5
+   id    stimulus n_trials n_correct prop_correct
+   &lt;fct&gt; &lt;fct&gt;       &lt;int&gt;     &lt;int&gt;        &lt;dbl&gt;
+ 1 1     go            800       604        0.755
+ 2 1     nogo          200       161        0.805
+ 3 2     go            800       715        0.894
+ 4 2     nogo          200       143        0.715
+ 5 3     go            800       672        0.84 
+ 6 3     nogo          200       147        0.735
+ 7 4     go            800       735        0.919
+ 8 4     nogo          200       133        0.665
+ 9 5     go            800       654        0.818
+10 5     nogo          200       128        0.64 
+# ℹ 110 more rows
+
+$subject_reaction_time
+# A tibble: 120 × 8
+   id    stimulus correct  n_rt mean_rt median_rt sd_rt included
+   &lt;fct&gt; &lt;fct&gt;    &lt;lgl&gt;   &lt;int&gt;   &lt;dbl&gt;     &lt;dbl&gt; &lt;dbl&gt; &lt;lgl&gt;   
+ 1 1     go       TRUE      604   0.729     0.647 0.269 TRUE    
+ 2 1     nogo     FALSE      39   0.79      0.693 0.259 TRUE    
+ 3 2     go       TRUE      715   0.6       0.53  0.195 TRUE    
+ 4 2     nogo     FALSE      57   0.563     0.537 0.152 TRUE    
+ 5 3     go       TRUE      672   0.664     0.593 0.233 TRUE    
+ 6 3     nogo     FALSE      53   0.677     0.567 0.263 TRUE    
+ 7 4     go       TRUE      735   0.635     0.546 0.234 TRUE    
+ 8 4     nogo     FALSE      67   0.601     0.529 0.203 TRUE    
+ 9 5     go       TRUE      654   0.628     0.557 0.238 TRUE    
+10 5     nogo     FALSE      72   0.668     0.552 0.284 TRUE    
+# ℹ 110 more rows
+
+$rt_exclusions
+# A tibble: 2 × 5
+  stimulus correct n_subjects n_included n_excluded
+  &lt;fct&gt;    &lt;lgl&gt;        &lt;int&gt;      &lt;int&gt;      &lt;int&gt;
+1 go       TRUE            60         60          0
+2 nogo     FALSE           60         60          0
+
+$rt_note
+[1] "Individual RT summaries require at least 10 observed RTs per subject and condition. stimulus=go, correct=TRUE: 0 of 60 subjects excluded; stimulus=nogo, correct=FALSE: 0 of 60 subjects excluded."</code></pre>
+</div>
+</div>
+</section>
+<section id="subject-specific-density-plots-for-correct-go-and-incorrect-no-go-trials" class="level3">
+<h3 class="anchored" data-anchor-id="subject-specific-density-plots-for-correct-go-and-incorrect-no-go-trials">2.4 Subject specific density plots for correct go and incorrect no-go trials</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb15"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Generate the plots with individual performance</span></span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a><span class="fu">plot_defectiveDensityGNG</span>(dat, gng_design, <span class="at">individual =</span> <span class="cn">TRUE</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="gng_ddm_hierarchical_files/figure-html/generate a plot at the participant level-1.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+</div>
+</section>
+</section>
+<section id="specifying-our-priors" class="level2">
+<h2 class="anchored" data-anchor-id="specifying-our-priors">3. Specifying our Priors</h2>
+<section id="specifying-the-prior-means" class="level3">
+<h3 class="anchored" data-anchor-id="specifying-the-prior-means">3.1 Specifying the prior means</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb16"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Get an empty vector with DDM parameter names</span></span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a>prior_pvec <span class="ot">&lt;-</span> <span class="fu">sampled_pars</span>(designWDM)</span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Specify population-level prior means</span></span>
+<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a>prior_pvec[<span class="fu">grepl</span>(<span class="st">"^v_"</span>, <span class="fu">names</span>(prior_pvec))] <span class="ot">&lt;-</span> <span class="dv">2</span></span>
+<span id="cb16-6"><a href="#cb16-6" aria-hidden="true" tabindex="-1"></a>prior_pvec[<span class="st">"a"</span>] <span class="ot">&lt;-</span> <span class="fu">log</span>(<span class="dv">1</span>)</span>
+<span id="cb16-7"><a href="#cb16-7" aria-hidden="true" tabindex="-1"></a>prior_pvec[<span class="st">"Z"</span>] <span class="ot">&lt;-</span> <span class="fu">qnorm</span>(.<span class="dv">5</span>)</span>
+<span id="cb16-8"><a href="#cb16-8" aria-hidden="true" tabindex="-1"></a>prior_pvec[<span class="st">"t0"</span>] <span class="ot">&lt;-</span> <span class="fu">log</span>(.<span class="dv">4</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="specifying-the-prior-variances" class="level3">
+<h3 class="anchored" data-anchor-id="specifying-the-prior-variances">3.2 Specifying the prior variances</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb17"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Specify population-level prior variances</span></span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a>prior_vvec <span class="ot">&lt;-</span> <span class="fu">sampled_pars</span>(designWDM) <span class="sc">+</span> <span class="dv">1</span></span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a>prior_vvec[<span class="st">"Z"</span>] <span class="ot">&lt;-</span> .<span class="dv">5</span></span>
+<span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a>prior_vvec[<span class="st">"t0"</span>] <span class="ot">&lt;-</span> .<span class="dv">5</span></span>
+<span id="cb17-6"><a href="#cb17-6" aria-hidden="true" tabindex="-1"></a>prior_vvec[<span class="st">"a"</span>] <span class="ot">&lt;-</span> .<span class="dv">25</span></span>
+<span id="cb17-7"><a href="#cb17-7" aria-hidden="true" tabindex="-1"></a>prior_vvec[<span class="st">"t0"</span>] <span class="ot">&lt;-</span> .<span class="dv">10</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="creating-the-prior-distributions" class="level3">
+<h3 class="anchored" data-anchor-id="creating-the-prior-distributions">3.3 Creating the prior distributions</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb18"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Print this out to know how to correctly specify the inputs of prior</span></span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a><span class="fu">prior_help</span>(<span class="st">"standard"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>type: mu 
+Group-level mean 
+
+  Hyperparameters: 
+  - theta_mu_mean : mean of the group-level mean prior 
+  - theta_mu_var : variance of the group-level mean prior 
+
+type: Sigma 
+Group-level covariance matrix 
+
+  Hyperparameters: 
+  - v : degrees of freedom on the group-level (co-)variance prior, 2 leads to uniform correlations. Single value 
+  - A : scale on the group-level variance prior, larger values lead to larger variances </code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb20"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Create hierarchical prior</span></span>
+<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a>prior <span class="ot">&lt;-</span> <span class="fu">prior</span>(</span>
+<span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">design =</span> designWDM,</span>
+<span id="cb20-4"><a href="#cb20-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">type =</span> <span class="st">"standard"</span>,</span>
+<span id="cb20-5"><a href="#cb20-5" aria-hidden="true" tabindex="-1"></a>  <span class="at">theta_mu_mean =</span> prior_pvec,</span>
+<span id="cb20-6"><a href="#cb20-6" aria-hidden="true" tabindex="-1"></a>  <span class="at">theta_mu_var =</span> prior_vvec</span>
+<span id="cb20-7"><a href="#cb20-7" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="plotting-the-prior-distributions" class="level3">
+<h3 class="anchored" data-anchor-id="plotting-the-prior-distributions">3.4 Plotting the prior distributions</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb21"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Inspect priors</span></span>
+<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a><span class="fu">plot</span>(prior, <span class="at">map =</span> <span class="cn">FALSE</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="gng_ddm_hierarchical_files/figure-html/plotting our prior distributions-1.png" class="img-fluid figure-img" width="1152"></p>
+</figure>
+</div>
+</div>
+<div class="sourceCode cell-code" id="cb22"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="fu">plot</span>(prior, <span class="at">map =</span> <span class="cn">TRUE</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="gng_ddm_hierarchical_files/figure-html/plotting our prior distributions-2.png" class="img-fluid figure-img" width="1152"></p>
+</figure>
+</div>
+</div>
+</div>
+</section>
+</section>
+<section id="fitting-a-wiender-diffusion-model" class="level2">
+<h2 class="anchored" data-anchor-id="fitting-a-wiender-diffusion-model">4. Fitting a Wiender Diffusion Model</h2>
+<section id="fitting-the-model" class="level3">
+<h3 class="anchored" data-anchor-id="fitting-the-model">4.1 Fitting the model</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb23"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Create EMC2 object</span></span>
+<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a><span class="co">#emc &lt;- make_emc(data = dat,</span></span>
+<span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a><span class="co">#  design = designWDM,</span></span>
+<span id="cb23-4"><a href="#cb23-4" aria-hidden="true" tabindex="-1"></a><span class="co">#  type = "standard",</span></span>
+<span id="cb23-5"><a href="#cb23-5" aria-hidden="true" tabindex="-1"></a><span class="co">#  prior = prior</span></span>
+<span id="cb23-6"><a href="#cb23-6" aria-hidden="true" tabindex="-1"></a><span class="co">#)</span></span>
+<span id="cb23-7"><a href="#cb23-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-8"><a href="#cb23-8" aria-hidden="true" tabindex="-1"></a><span class="co"># Fit hierarchical DDM</span></span>
+<span id="cb23-9"><a href="#cb23-9" aria-hidden="true" tabindex="-1"></a><span class="co">#emc &lt;- fit(</span></span>
+<span id="cb23-10"><a href="#cb23-10" aria-hidden="true" tabindex="-1"></a><span class="co">#  emc = emc,</span></span>
+<span id="cb23-11"><a href="#cb23-11" aria-hidden="true" tabindex="-1"></a><span class="co">#  stop_criteria = list(</span></span>
+<span id="cb23-12"><a href="#cb23-12" aria-hidden="true" tabindex="-1"></a><span class="co">#    sample = list(</span></span>
+<span id="cb23-13"><a href="#cb23-13" aria-hidden="true" tabindex="-1"></a><span class="co">#      iter = 1000,</span></span>
+<span id="cb23-14"><a href="#cb23-14" aria-hidden="true" tabindex="-1"></a><span class="co">#      max_gd = 1.01</span></span>
+<span id="cb23-15"><a href="#cb23-15" aria-hidden="true" tabindex="-1"></a><span class="co">#    )</span></span>
+<span id="cb23-16"><a href="#cb23-16" aria-hidden="true" tabindex="-1"></a><span class="co">#  ),</span></span>
+<span id="cb23-17"><a href="#cb23-17" aria-hidden="true" tabindex="-1"></a><span class="co">#  cores_per_chain = 2,</span></span>
+<span id="cb23-18"><a href="#cb23-18" aria-hidden="true" tabindex="-1"></a><span class="co">#  cores_for_chains = 3</span></span>
+<span id="cb23-19"><a href="#cb23-19" aria-hidden="true" tabindex="-1"></a><span class="co">#)</span></span>
+<span id="cb23-20"><a href="#cb23-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-21"><a href="#cb23-21" aria-hidden="true" tabindex="-1"></a><span class="co"># Save the model</span></span>
+<span id="cb23-22"><a href="#cb23-22" aria-hidden="true" tabindex="-1"></a><span class="co"># save(emc, file = here("ddm", "hierarchical", "models", "gng_ddm_hierarchical.Rdata"))</span></span>
+<span id="cb23-23"><a href="#cb23-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-24"><a href="#cb23-24" aria-hidden="true" tabindex="-1"></a><span class="co"># Loading the model object</span></span>
+<span id="cb23-25"><a href="#cb23-25" aria-hidden="true" tabindex="-1"></a><span class="fu">load</span>(<span class="fu">here</span>(<span class="st">"ddm"</span>, <span class="st">"hierarchical"</span>, <span class="st">"models"</span>, <span class="st">"gng_ddm_hierarchical.Rdata"</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="check-model-convergence" class="level3">
+<h3 class="anchored" data-anchor-id="check-model-convergence">4.2 Check model convergence</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb24"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Check model convergence</span></span>
+<span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a><span class="fu">check</span>(emc, <span class="at">plot =</span> <span class="cn">FALSE</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Iterations:
+     preburn burn adapt sample
+[1,]       0    0     0   1000
+[2,]       0    0     0   1000
+[3,]       0    0     0   1000
+
+ mu 
+     v_match:Sgo v_match:Snogo        Z        a       t0
+Rhat       1.001         1.004    1.006    1.001    1.002
+ESS     1392.000       764.000 1415.000 1960.000 2846.000
+
+ sigma2 
+     v_match:Sgo v_match:Snogo       Z        a       t0
+Rhat       1.005         1.014   1.004    1.002    1.003
+ESS      875.000       382.000 887.000 1325.000 2281.000
+
+ alpha highest Rhat : 9 
+     v_match:Sgo v_match:Snogo        Z        a       t0
+Rhat           1         1.007    1.001    1.001    1.001
+ESS         2235      1476.000 1636.000 2078.000 2132.000</code></pre>
+</div>
+</div>
+</section>
+<section id="parameter-recovery-study" class="level3">
+<h3 class="anchored" data-anchor-id="parameter-recovery-study">4.3 Parameter recovery study</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb26"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Do a parameter recovery</span></span>
+<span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a><span class="fu">recovery</span>(emc, p_subjects, <span class="at">selection =</span> <span class="st">"alpha"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="gng_ddm_hierarchical_files/figure-html/run a parameter recovery study-1.png" class="img-fluid figure-img" width="1152"></p>
+</figure>
+</div>
+</div>
+</div>
+</section>
+<section id="comparing-predicted-datasets-against-observed" class="level3">
+<h3 class="anchored" data-anchor-id="comparing-predicted-datasets-against-observed">4.4 Comparing predicted datasets against observed</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb27"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Generating predicted datasets</span></span>
+<span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a><span class="co"># pp &lt;- predict(emc, n_cores = 4, n_post = 200)</span></span>
+<span id="cb27-3"><a href="#cb27-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-4"><a href="#cb27-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Saving the predicted datasets</span></span>
+<span id="cb27-5"><a href="#cb27-5" aria-hidden="true" tabindex="-1"></a><span class="co">#saveRDS(</span></span>
+<span id="cb27-6"><a href="#cb27-6" aria-hidden="true" tabindex="-1"></a><span class="co">#  object = pp,</span></span>
+<span id="cb27-7"><a href="#cb27-7" aria-hidden="true" tabindex="-1"></a><span class="co">#  file = here("ddm", "hierarchical", "data", "gng_ddm_hierarchical_pp.rds")</span></span>
+<span id="cb27-8"><a href="#cb27-8" aria-hidden="true" tabindex="-1"></a><span class="co">#)</span></span>
+<span id="cb27-9"><a href="#cb27-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-10"><a href="#cb27-10" aria-hidden="true" tabindex="-1"></a><span class="co"># Loading them in</span></span>
+<span id="cb27-11"><a href="#cb27-11" aria-hidden="true" tabindex="-1"></a>pp <span class="ot">&lt;-</span> <span class="fu">readRDS</span>(<span class="fu">here</span>(<span class="st">"ddm"</span>, <span class="st">"hierarchical"</span>, <span class="st">"data"</span>, <span class="st">"gng_ddm_hierarchical_pp.rds"</span>))</span>
+<span id="cb27-12"><a href="#cb27-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-13"><a href="#cb27-13" aria-hidden="true" tabindex="-1"></a><span class="co"># Observed accuracy</span></span>
+<span id="cb27-14"><a href="#cb27-14" aria-hidden="true" tabindex="-1"></a><span class="fu">aggregate</span>(S <span class="sc">==</span> R <span class="sc">~</span> S, dat, mean)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>     S    S == R
+1   go 0.8278333
+2 nogo 0.7365000</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb29"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Predicted accuracy</span></span>
+<span id="cb29-2"><a href="#cb29-2" aria-hidden="true" tabindex="-1"></a><span class="fu">aggregate</span>(S <span class="sc">==</span> R <span class="sc">~</span> S <span class="sc">+</span> postn, pp, mean) <span class="sc">%&gt;%</span></span>
+<span id="cb29-3"><a href="#cb29-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">setNames</span>(<span class="fu">c</span>(<span class="st">"S"</span>, <span class="st">"postn"</span>, <span class="st">"accuracy"</span>)) <span class="sc">%&gt;%</span></span>
+<span id="cb29-4"><a href="#cb29-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">aggregate</span>(accuracy <span class="sc">~</span> S, ., quantile, <span class="at">probs =</span> <span class="fu">c</span>(.<span class="dv">05</span>, .<span class="dv">5</span>, .<span class="dv">95</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>     S accuracy.5% accuracy.50% accuracy.95%
+1   go   0.8239521    0.8275833    0.8319115
+2 nogo   0.7290750    0.7376250    0.7455125</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb31"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Observed reaction times</span></span>
+<span id="cb31-2"><a href="#cb31-2" aria-hidden="true" tabindex="-1"></a><span class="fu">aggregate</span>(rt <span class="sc">~</span> S <span class="sc">+</span> (S <span class="sc">==</span> R), dat, mean)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>     S S == R        rt
+1 nogo  FALSE 0.6487136
+2   go   TRUE 0.6720139</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb33"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Predicted reaction times</span></span>
+<span id="cb33-2"><a href="#cb33-2" aria-hidden="true" tabindex="-1"></a><span class="fu">aggregate</span>(rt <span class="sc">~</span> S <span class="sc">+</span> (S <span class="sc">==</span> R) <span class="sc">+</span> postn, pp, mean) <span class="sc">%&gt;%</span></span>
+<span id="cb33-3"><a href="#cb33-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">setNames</span>(<span class="fu">c</span>(<span class="st">"S"</span>, <span class="st">"S==R"</span>, <span class="st">"postn"</span>, <span class="st">"rt"</span>)) <span class="sc">%&gt;%</span></span>
+<span id="cb33-4"><a href="#cb33-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">aggregate</span>(rt <span class="sc">~</span> S <span class="sc">+</span> <span class="st">`</span><span class="at">S==R</span><span class="st">`</span>, ., quantile, <span class="at">probs =</span> <span class="fu">c</span>(.<span class="dv">05</span>, .<span class="dv">5</span>, .<span class="dv">95</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>     S  S==R     rt.5%    rt.50%    rt.95%
+1 nogo FALSE 0.6378930 0.6445347 0.6518391
+2   go  TRUE 0.6609823 0.6636353 0.6660359</code></pre>
+</div>
+</div>
+</section>
+<section id="producing-defective-plots-with-predicted-datasets" class="level3">
+<h3 class="anchored" data-anchor-id="producing-defective-plots-with-predicted-datasets">4.5 Producing defective plots with predicted datasets</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb35"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb35-1"><a href="#cb35-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Posterior predictive plots</span></span>
+<span id="cb35-2"><a href="#cb35-2" aria-hidden="true" tabindex="-1"></a><span class="fu">plot_density</span>(dat, pp, <span class="at">factors =</span> <span class="fu">c</span>(<span class="st">"S"</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="gng_ddm_hierarchical_files/figure-html/producing defective plots with predicted datasets-1.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+<div class="sourceCode cell-code" id="cb36"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a><span class="fu">plot_cdf</span>(dat, pp, <span class="at">factors =</span> <span class="fu">c</span>(<span class="st">"S"</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="gng_ddm_hierarchical_files/figure-html/producing defective plots with predicted datasets-2.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+</div>
+
+
+</section>
+</section>
+
+</main> <!-- /main -->
+<script id="quarto-html-after-body" type="application/javascript">
+window.document.addEventListener("DOMContentLoaded", function (event) {
+  const toggleBodyColorMode = (bsSheetEl) => {
+    const mode = bsSheetEl.getAttribute("data-mode");
+    const bodyEl = window.document.querySelector("body");
+    if (mode === "dark") {
+      bodyEl.classList.add("quarto-dark");
+      bodyEl.classList.remove("quarto-light");
+    } else {
+      bodyEl.classList.add("quarto-light");
+      bodyEl.classList.remove("quarto-dark");
+    }
+  }
+  const toggleBodyColorPrimary = () => {
+    const bsSheetEl = window.document.querySelector("link#quarto-bootstrap");
+    if (bsSheetEl) {
+      toggleBodyColorMode(bsSheetEl);
+    }
+  }
+  toggleBodyColorPrimary();  
+  const icon = "";
+  const anchorJS = new window.AnchorJS();
+  anchorJS.options = {
+    placement: 'right',
+    icon: icon
+  };
+  anchorJS.add('.anchored');
+  const isCodeAnnotation = (el) => {
+    for (const clz of el.classList) {
+      if (clz.startsWith('code-annotation-')) {                     
+        return true;
+      }
+    }
+    return false;
+  }
+  const onCopySuccess = function(e) {
+    // button target
+    const button = e.trigger;
+    // don't keep focus
+    button.blur();
+    // flash "checked"
+    button.classList.add('code-copy-button-checked');
+    var currentTitle = button.getAttribute("title");
+    button.setAttribute("title", "Copied!");
+    let tooltip;
+    if (window.bootstrap) {
+      button.setAttribute("data-bs-toggle", "tooltip");
+      button.setAttribute("data-bs-placement", "left");
+      button.setAttribute("data-bs-title", "Copied!");
+      tooltip = new bootstrap.Tooltip(button, 
+        { trigger: "manual", 
+          customClass: "code-copy-button-tooltip",
+          offset: [0, -8]});
+      tooltip.show();    
+    }
+    setTimeout(function() {
+      if (tooltip) {
+        tooltip.hide();
+        button.removeAttribute("data-bs-title");
+        button.removeAttribute("data-bs-toggle");
+        button.removeAttribute("data-bs-placement");
+      }
+      button.setAttribute("title", currentTitle);
+      button.classList.remove('code-copy-button-checked');
+    }, 1000);
+    // clear code selection
+    e.clearSelection();
+  }
+  const getTextToCopy = function(trigger) {
+      const codeEl = trigger.previousElementSibling.cloneNode(true);
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+  }
+  const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+    text: getTextToCopy
+  });
+  clipboard.on('success', onCopySuccess);
+  if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+    // For code content inside modals, clipBoardJS needs to be initialized with a container option
+    // TODO: Check when it could be a function (https://github.com/zenorocha/clipboard.js/issues/860)
+    const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+      text: getTextToCopy,
+      container: window.document.getElementById('quarto-embedded-source-code-modal')
+    });
+    clipboardModal.on('success', onCopySuccess);
+  }
+    var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+    var mailtoRegex = new RegExp(/^mailto:/);
+      var filterRegex = new RegExp('/' + window.location.host + '/');
+    var isInternal = (href) => {
+        return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+    }
+    // Inspect non-navigation links and adorn them if external
+ 	var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+    for (var i=0; i<links.length; i++) {
+      const link = links[i];
+      if (!isInternal(link.href)) {
+        // undo the damage that might have been done by quarto-nav.js in the case of
+        // links that we want to consider external
+        if (link.dataset.originalHref !== undefined) {
+          link.href = link.dataset.originalHref;
+        }
+      }
+    }
+  function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+    const config = {
+      allowHTML: true,
+      maxWidth: 500,
+      delay: 100,
+      arrow: false,
+      appendTo: function(el) {
+          return el.parentElement;
+      },
+      interactive: true,
+      interactiveBorder: 10,
+      theme: 'quarto',
+      placement: 'bottom-start',
+    };
+    if (contentFn) {
+      config.content = contentFn;
+    }
+    if (onTriggerFn) {
+      config.onTrigger = onTriggerFn;
+    }
+    if (onUntriggerFn) {
+      config.onUntrigger = onUntriggerFn;
+    }
+    window.tippy(el, config); 
+  }
+  const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+  for (var i=0; i<noterefs.length; i++) {
+    const ref = noterefs[i];
+    tippyHover(ref, function() {
+      // use id or data attribute instead here
+      let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+      try { href = new URL(href).hash; } catch {}
+      const id = href.replace(/^#\/?/, "");
+      const note = window.document.getElementById(id);
+      if (note) {
+        return note.innerHTML;
+      } else {
+        return "";
+      }
+    });
+  }
+  const xrefs = window.document.querySelectorAll('a.quarto-xref');
+  const processXRef = (id, note) => {
+    // Strip column container classes
+    const stripColumnClz = (el) => {
+      el.classList.remove("page-full", "page-columns");
+      if (el.children) {
+        for (const child of el.children) {
+          stripColumnClz(child);
+        }
+      }
+    }
+    stripColumnClz(note)
+    if (id === null || id.startsWith('sec-')) {
+      // Special case sections, only their first couple elements
+      const container = document.createElement("div");
+      if (note.children && note.children.length > 2) {
+        container.appendChild(note.children[0].cloneNode(true));
+        for (let i = 1; i < note.children.length; i++) {
+          const child = note.children[i];
+          if (child.tagName === "P" && child.innerText === "") {
+            continue;
+          } else {
+            container.appendChild(child.cloneNode(true));
+            break;
+          }
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(container);
+        }
+        return container.innerHTML
+      } else {
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        return note.innerHTML;
+      }
+    } else {
+      // Remove any anchor links if they are present
+      const anchorLink = note.querySelector('a.anchorjs-link');
+      if (anchorLink) {
+        anchorLink.remove();
+      }
+      if (window.Quarto?.typesetMath) {
+        window.Quarto.typesetMath(note);
+      }
+      // TODO in 1.5, we should make sure this works without a callout special case
+      if (note.classList.contains("callout")) {
+        return note.outerHTML;
+      } else {
+        return note.innerHTML;
+      }
+    }
+  }
+  for (var i=0; i<xrefs.length; i++) {
+    const xref = xrefs[i];
+    tippyHover(xref, undefined, function(instance) {
+      instance.disable();
+      let url = xref.getAttribute('href');
+      let hash = undefined; 
+      if (url.startsWith('#')) {
+        hash = url;
+      } else {
+        try { hash = new URL(url).hash; } catch {}
+      }
+      if (hash) {
+        const id = hash.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note !== null) {
+          try {
+            const html = processXRef(id, note.cloneNode(true));
+            instance.setContent(html);
+          } finally {
+            instance.enable();
+            instance.show();
+          }
+        } else {
+          // See if we can fetch this
+          fetch(url.split('#')[0])
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.getElementById(id);
+            if (note !== null) {
+              const html = processXRef(id, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      } else {
+        // See if we can fetch a full url (with no hash to target)
+        // This is a special case and we should probably do some content thinning / targeting
+        fetch(url)
+        .then(res => res.text())
+        .then(html => {
+          const parser = new DOMParser();
+          const htmlDoc = parser.parseFromString(html, "text/html");
+          const note = htmlDoc.querySelector('main.content');
+          if (note !== null) {
+            // This should only happen for chapter cross references
+            // (since there is no id in the URL)
+            // remove the first header
+            if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+              note.children[0].remove();
+            }
+            const html = processXRef(null, note);
+            instance.setContent(html);
+          } 
+        }).finally(() => {
+          instance.enable();
+          instance.show();
+        });
+      }
+    }, function(instance) {
+    });
+  }
+      let selectedAnnoteEl;
+      const selectorForAnnotation = ( cell, annotation) => {
+        let cellAttr = 'data-code-cell="' + cell + '"';
+        let lineAttr = 'data-code-annotation="' +  annotation + '"';
+        const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+        return selector;
+      }
+      const selectCodeLines = (annoteEl) => {
+        const doc = window.document;
+        const targetCell = annoteEl.getAttribute("data-target-cell");
+        const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+        const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+        const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+        const lineIds = lines.map((line) => {
+          return targetCell + "-" + line;
+        })
+        let top = null;
+        let height = null;
+        let parent = null;
+        if (lineIds.length > 0) {
+            //compute the position of the single el (top and bottom and make a div)
+            const el = window.document.getElementById(lineIds[0]);
+            top = el.offsetTop;
+            height = el.offsetHeight;
+            parent = el.parentElement.parentElement;
+          if (lineIds.length > 1) {
+            const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+            const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+            height = bottom - top;
+          }
+          if (top !== null && height !== null && parent !== null) {
+            // cook up a div (if necessary) and position it 
+            let div = window.document.getElementById("code-annotation-line-highlight");
+            if (div === null) {
+              div = window.document.createElement("div");
+              div.setAttribute("id", "code-annotation-line-highlight");
+              div.style.position = 'absolute';
+              parent.appendChild(div);
+            }
+            div.style.top = top - 2 + "px";
+            div.style.height = height + 4 + "px";
+            div.style.left = 0;
+            let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+            if (gutterDiv === null) {
+              gutterDiv = window.document.createElement("div");
+              gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+              gutterDiv.style.position = 'absolute';
+              const codeCell = window.document.getElementById(targetCell);
+              const gutter = codeCell.querySelector('.code-annotation-gutter');
+              gutter.appendChild(gutterDiv);
+            }
+            gutterDiv.style.top = top - 2 + "px";
+            gutterDiv.style.height = height + 4 + "px";
+          }
+          selectedAnnoteEl = annoteEl;
+        }
+      };
+      const unselectCodeLines = () => {
+        const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+        elementsIds.forEach((elId) => {
+          const div = window.document.getElementById(elId);
+          if (div) {
+            div.remove();
+          }
+        });
+        selectedAnnoteEl = undefined;
+      };
+        // Handle positioning of the toggle
+    window.addEventListener(
+      "resize",
+      throttle(() => {
+        elRect = undefined;
+        if (selectedAnnoteEl) {
+          selectCodeLines(selectedAnnoteEl);
+        }
+      }, 10)
+    );
+    function throttle(fn, ms) {
+    let throttle = false;
+    let timer;
+      return (...args) => {
+        if(!throttle) { // first call gets through
+            fn.apply(this, args);
+            throttle = true;
+        } else { // all the others get throttled
+            if(timer) clearTimeout(timer); // cancel #2
+            timer = setTimeout(() => {
+              fn.apply(this, args);
+              timer = throttle = false;
+            }, ms);
+        }
+      };
+    }
+      // Attach click handler to the DT
+      const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+      for (const annoteDlNode of annoteDls) {
+        annoteDlNode.addEventListener('click', (event) => {
+          const clickedEl = event.target;
+          if (clickedEl !== selectedAnnoteEl) {
+            unselectCodeLines();
+            const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+            if (activeEl) {
+              activeEl.classList.remove('code-annotation-active');
+            }
+            selectCodeLines(clickedEl);
+            clickedEl.classList.add('code-annotation-active');
+          } else {
+            // Unselect the line
+            unselectCodeLines();
+            clickedEl.classList.remove('code-annotation-active');
+          }
+        });
+      }
+  const findCites = (el) => {
+    const parentEl = el.parentElement;
+    if (parentEl) {
+      const cites = parentEl.dataset.cites;
+      if (cites) {
+        return {
+          el,
+          cites: cites.split(' ')
+        };
+      } else {
+        return findCites(el.parentElement)
+      }
+    } else {
+      return undefined;
+    }
+  };
+  var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+  for (var i=0; i<bibliorefs.length; i++) {
+    const ref = bibliorefs[i];
+    const citeInfo = findCites(ref);
+    if (citeInfo) {
+      tippyHover(citeInfo.el, function() {
+        var popup = window.document.createElement('div');
+        citeInfo.cites.forEach(function(cite) {
+          var citeDiv = window.document.createElement('div');
+          citeDiv.classList.add('hanging-indent');
+          citeDiv.classList.add('csl-entry');
+          var biblioDiv = window.document.getElementById('ref-' + cite);
+          if (biblioDiv) {
+            citeDiv.innerHTML = biblioDiv.innerHTML;
+          }
+          popup.appendChild(citeDiv);
+        });
+        return popup.innerHTML;
+      });
+    }
+  }
+});
+</script>
+</div> <!-- /content -->
+
+
+
+
+</body></html>
