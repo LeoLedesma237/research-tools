@@ -13,3 +13,5 @@ source(file.path(ddm_dir, "R", "plot_defectiveDensityComparison.R"))
 source(file.path(ddm_dir, "R", "plot_defectiveDensityGNG.R"))
 source(file.path(ddm_dir, "R", "plot_defectiveDensityComparisonGNG.R"))
 source(file.path(ddm_dir, "R", "plot_defectiveCumulativeGNG.R"))
+source(file.path(ddm_dir, "R", "plot_emcMCMC.R"))
+
